@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import PyPDF2
+import time
 
 st.set_page_config(page_title="Générateur de Tournée", page_icon="🚚", layout="centered")
 
@@ -30,30 +31,38 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
-# --- FONCTION AUTO-DÉTECTION ---
+# --- FONCTION AUTO-DÉTECTION ET FILE D'ATTENTE ---
 def ask_ai(content_data):
     try:
-        # 1. On demande à Google la liste exacte des moteurs autorisés pour ta clé
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        # 2. On cherche le meilleur (1.5-flash) dans ta liste
         chosen_model = None
         for m in available_models:
-            if '1.5-flash' in m:
+            if '1.5-flash' in m or '2.5-flash' in m:
                 chosen_model = m
                 break
                 
-        # 3. Si on ne le trouve pas, on prend le tout premier autorisé
         if not chosen_model and available_models:
             chosen_model = available_models[0]
             
         if not chosen_model:
-            return None, "Aucun moteur IA n'est activé pour cette clé API. Vérifie sur Google AI Studio."
+            return None, "Aucun moteur IA n'est activé pour cette clé API."
 
-        # 4. On lance la génération avec le bon moteur !
         model = genai.GenerativeModel(chosen_model)
-        response = model.generate_content([system_prompt, content_data])
-        return response.text, None
+        
+        # Le système anti-bouchon (essaie 3 fois en attendant 10 secondes)
+        for tentative in range(3):
+            try:
+                response = model.generate_content([system_prompt, content_data])
+                return response.text, None
+            except Exception as e:
+                if "429" in str(e) or "Quota" in str(e):
+                    time.sleep(10) # Attendre 10 secondes et réessayer
+                    continue
+                else:
+                    return None, str(e)
+                    
+        return None, "Les serveurs de Google sont surchargés, réessayez dans 1 minute."
         
     except Exception as e:
         return None, str(e)
@@ -65,7 +74,7 @@ tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Ma
 with tab1:
     uploaded_image = st.file_uploader("Prenez en photo la feuille de tournée :", type=["jpg", "jpeg", "png"])
     if st.button("🚀 Générer depuis la photo") and uploaded_image:
-        with st.spinner("L'IA analyse les adresses et crée l'application..."):
+        with st.spinner("L'IA analyse les adresses et crée l'application... (cela peut prendre 15 à 30 secondes)"):
             img = Image.open(uploaded_image)
             html_result, error = ask_ai(img)
             
