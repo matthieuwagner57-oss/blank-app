@@ -12,7 +12,6 @@ st.markdown("Créez l'application mobile pour les livreurs en 1 clic !")
 # Connexion avec le NOUVEAU système Google
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
-    # Nouvelle méthode de connexion
     client = genai.Client(api_key=api_key)
 except:
     st.error("Erreur : La clé API n'est pas configurée dans les paramètres secrets.")
@@ -31,9 +30,10 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
-# --- FONCTION SÉCURISÉE (NOUVELLE SYNTAXE) ---
+# --- FONCTION AVEC ROUE DE SECOURS ---
 def ask_ai(content_data):
     try:
+        # On tente le moteur le plus récent
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[system_prompt, content_data]
@@ -41,8 +41,20 @@ def ask_ai(content_data):
         return response.text, None
     except Exception as e:
         erreur = str(e)
-        if "429" in erreur or "Quota" in erreur:
+        # Si le serveur mondial est surchargé (Erreur 503), on passe sur le moteur ultra-stable
+        if "503" in erreur or "high demand" in erreur:
+            try:
+                response = client.models.generate_content(
+                    model='gemini-1.5-flash',
+                    contents=[system_prompt, content_data]
+                )
+                return response.text, None
+            except Exception as e2:
+                return None, f"Même le serveur de secours est indisponible. Erreur : {str(e2)}"
+        
+        elif "429" in erreur or "Quota" in erreur:
             return None, "Vitesse limite atteinte. Vérifiez votre compte Google AI."
+            
         return None, erreur
 
 # --- LES 3 ONGLETS ---
