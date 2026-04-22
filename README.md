@@ -2,6 +2,7 @@ import streamlit as st
 from google import genai
 from PIL import Image
 import PyPDF2
+import time
 
 st.set_page_config(page_title="Générateur de Tournée", page_icon="🚚", layout="centered")
 
@@ -30,25 +31,35 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
-# --- FONCTION MODE DIAGNOSTIC (SANS FILTRE) ---
+# --- FONCTION DÉFINITIVE (AVEC PATIENCE INVISIBLE) ---
 def ask_ai(content_data):
-    modeles_a_tester = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
-    journal_erreurs = ""
-    
-    for nom_modele in modeles_a_tester:
+    # L'ordinateur va essayer 3 fois maximum
+    for tentative in range(3):
         try:
             response = client.models.generate_content(
-                model=nom_modele,
+                model='gemini-2.5-flash',
                 contents=[system_prompt, content_data]
             )
             return response.text, None
             
         except Exception as e:
-            # On enregistre la VRAIE erreur de chaque modèle
-            journal_erreurs += f"\n\n🚨 Erreur sur le modèle {nom_modele} :\n{str(e)}"
+            erreur = str(e)
+            
+            # Si le serveur mondial a un pic de trafic (503)
+            if "503" in erreur or "high demand" in erreur:
+                if tentative < 2: # S'il reste des essais
+                    time.sleep(5) # On patiente 5 secondes en silence
+                    continue      # Et on relance
+                else:
+                    return None, "Les serveurs mondiaux de Google sont actuellement très sollicités. Réessayez dans 2 minutes !"
+                    
+            # Si on clique trop vite
+            elif "429" in erreur or "Quota" in erreur:
+                return None, "Vitesse limite atteinte. Patientez 10 secondes avant de re-cliquer."
                 
-    # Si tout échoue, on affiche tout le rapport brut
-    return None, f"MODE DIAGNOSTIC ACTIVÉ. Voici ce que Google répond vraiment : {journal_erreurs}"
+            # Autre erreur inconnue
+            else:
+                return None, f"Erreur inattendue : {erreur}"
 
 # --- LES 3 ONGLETS ---
 tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Manuel"])
@@ -57,7 +68,7 @@ tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Ma
 with tab1:
     uploaded_image = st.file_uploader("Prenez en photo la feuille de tournée :", type=["jpg", "jpeg", "png"])
     if st.button("🚀 Générer depuis la photo") and uploaded_image:
-        with st.spinner("L'IA lit la photo... (Mode Diagnostic)"):
+        with st.spinner("L'IA lit la photo... (cela peut prendre quelques secondes)"):
             img = Image.open(uploaded_image)
             html_result, error = ask_ai(img)
             
@@ -101,5 +112,6 @@ with tab3:
             else:
                 st.error(f"❌ {error}")
 
+# --- SIGNATURE DU CRÉATEUR ---
 st.divider()
 st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>✨ Créé sur mesure par <b>Matthieu WAGNER</b> pour l'équipe de livraison 🗞️</p>", unsafe_allow_html=True)
