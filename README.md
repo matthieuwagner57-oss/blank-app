@@ -8,6 +8,7 @@ from datetime import datetime
 
 st.set_page_config(page_title="Tournée RL Pro", page_icon="🗞️", layout="centered")
 
+# --- CONNEXION ---
 try:
     api_key = st.secrets["OPENAI_API_KEY"]
     client = OpenAI(api_key=api_key)
@@ -17,21 +18,19 @@ except:
 
 # --- GESTION DU JOUR ---
 jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-num_jour = datetime.now().weekday()
-nom_jour = jours[num_jour]
+nom_jour = jours[datetime.now().weekday()]
 
-# --- PROMPT POUR L'IA (UTILISÉ POUR PHOTO OU PDF) ---
+# --- PROMPT DE HAUTE PRÉCISION ---
 system_prompt = f"""
-Tu es un expert en logistique. Aujourd'hui nous sommes {nom_jour}.
-Analyse les données fournies (texte ou image).
+Tu es un expert en logistique. Tu dois extraire TOUTES les lignes (environ 19) du bordereau.
+Aujourd'hui nous sommes {nom_jour}.
 
-MISSION :
-1. Extrais TOUS les clients (il y en a environ 19).
-2. Pour chaque client : NOM, ADRESSE (Rue, CP, Ville).
-3. Regarde le calendrier des jours (Ronds/N) : 
-   - Ligne 1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi, 7=Dimanche.
-   - Si 'N' sur la ligne de {nom_jour} -> 'PAS DE JOURNAL'.
-   - Sinon -> ''.
+CONSIGNES :
+1. Extrais le NOM et l'ADRESSE (Rue, CP, Ville).
+2. Pour chaque client, regarde la colonne des jours (Ronds et N).
+3. La 1ère ligne de ronds est Lundi, la 2ème Mardi, etc.
+4. Si tu vois un 'N' sur la ligne de {nom_jour} -> Écris 'PAS DE JOURNAL'.
+5. Si c'est un rond 'O' -> Laisse vide.
 
 FORMAT DE SORTIE : NOM - ADRESSE - CONSIGNE
 """
@@ -41,12 +40,15 @@ def generate_final_html(lines):
     for i, line in enumerate(lines):
         if " - " not in line: continue
         parts = line.split(" - ")
-        nom, adr = parts[0].strip().upper(), parts[1].strip().upper()
+        nom = parts[0].strip().upper()
+        adr = parts[1].strip().upper()
         ins = parts[2].strip() if len(parts) > 2 else ""
         
         is_stop = "PAS" in ins.upper()
         color = "#ef4444" if is_stop else "#1a73e8"
         bg = "#fff1f2" if is_stop else "#ffffff"
+        
+        # Lien Maps sécurisé
         maps_url = f"https://www.google.com/maps/search/?api=1&query={adr.replace(' ', '+')}"
         
         cards_html += f"""
@@ -64,40 +66,28 @@ def generate_final_html(lines):
 # --- INTERFACE ---
 st.title("🗞️ Scanner RL (Photo ou PDF)")
 
-file = st.file_uploader("Dépose le PDF ou la Photo du bordereau :", type=["pdf", "jpg", "png", "jpeg"])
+file = st.file_uploader("Dépose ton scan PDF ou ta Photo :", type=["pdf", "jpg", "png", "jpeg"])
 
 if file:
     if st.button("🚀 ANALYSER LE DOCUMENT"):
-        with st.spinner("Analyse en cours..."):
-            raw_content = ""
-            
-            # SI C'EST UN PDF
+        with st.spinner("Analyse des 19 lignes..."):
             if file.type == "application/pdf":
                 with pdfplumber.open(file) as pdf:
-                    for page in pdf.pages:
-                        raw_content += page.extract_text()
-                
-                # On envoie le texte extrait à l'IA pour le mettre en forme
+                    raw_content = "".join([p.extract_text() for p in pdf.pages])
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": raw_content}]
                 )
-            
-            # SI C'EST UNE PHOTO
             else:
-                img = Image.open(file)
-                buffered = io.BytesIO()
-                img.save(buffered, format="PNG")
-                img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                img_str = base64.b64encode(file.read()).decode('utf-8')
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}"}}]}]
                 )
-            
             st.session_state.res = response.choices[0].message.content
 
     if "res" in st.session_state:
-        txt = st.text_area("Vérification :", value=st.session_state.res, height=300)
+        txt = st.text_area("Correction (Vérifie bien les 19 lignes) :", value=st.session_state.res, height=350)
         if st.button("⚙️ GÉNÉRER L'APPLI"):
             html = generate_final_html(txt.split("\n"))
             st.download_button("📥 TÉLÉCHARGER", html, "Tournee.html", "text/html")
