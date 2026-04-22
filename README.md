@@ -30,22 +30,33 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
-# --- FONCTION ANTI-PANNE ---
+# --- FONCTION AUTO-DÉTECTION ---
 def ask_ai(content_data):
-    # L'IA va tester ces moteurs un par un jusqu'à ce qu'il y en ait un qui marche
-    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-latest']
-    last_error = ""
-    
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content([system_prompt, content_data])
-            return response.text, None # Succès !
-        except Exception as e:
-            last_error = str(e)
-            continue # Si ça échoue, on passe au moteur suivant
+    try:
+        # 1. On demande à Google la liste exacte des moteurs autorisés pour ta clé
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # 2. On cherche le meilleur (1.5-flash) dans ta liste
+        chosen_model = None
+        for m in available_models:
+            if '1.5-flash' in m:
+                chosen_model = m
+                break
+                
+        # 3. Si on ne le trouve pas, on prend le tout premier autorisé
+        if not chosen_model and available_models:
+            chosen_model = available_models[0]
             
-    return None, last_error # Si vraiment tout a échoué
+        if not chosen_model:
+            return None, "Aucun moteur IA n'est activé pour cette clé API. Vérifie sur Google AI Studio."
+
+        # 4. On lance la génération avec le bon moteur !
+        model = genai.GenerativeModel(chosen_model)
+        response = model.generate_content([system_prompt, content_data])
+        return response.text, None
+        
+    except Exception as e:
+        return None, str(e)
 
 # --- LES 3 ONGLETS ---
 tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Manuel"])
@@ -54,7 +65,7 @@ tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Ma
 with tab1:
     uploaded_image = st.file_uploader("Prenez en photo la feuille de tournée :", type=["jpg", "jpeg", "png"])
     if st.button("🚀 Générer depuis la photo") and uploaded_image:
-        with st.spinner("L'IA lit la photo et crée l'application..."):
+        with st.spinner("L'IA analyse les adresses et crée l'application..."):
             img = Image.open(uploaded_image)
             html_result, error = ask_ai(img)
             
@@ -62,7 +73,7 @@ with tab1:
                 st.success("✅ Application générée avec succès !")
                 st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
             else:
-                st.error(f"❌ Les serveurs Google sont indisponibles. Détails : {error}")
+                st.error(f"❌ Erreur technique : {error}")
 
 # --- ONGLET 2 : FICHIER ---
 with tab2:
@@ -83,7 +94,7 @@ with tab2:
                 st.success("✅ Application générée avec succès !")
                 st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
             else:
-                st.error(f"❌ Les serveurs Google sont indisponibles. Détails : {error}")
+                st.error(f"❌ Erreur technique : {error}")
 
 # --- ONGLET 3 : MANUEL ---
 with tab3:
@@ -96,7 +107,7 @@ with tab3:
                 st.success("✅ Application générée avec succès !")
                 st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
             else:
-                st.error(f"❌ Les serveurs Google sont indisponibles. Détails : {error}")
+                st.error(f"❌ Erreur technique : {error}")
 
 # --- SIGNATURE DU CRÉATEUR ---
 st.divider()
