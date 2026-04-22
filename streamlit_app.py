@@ -13,7 +13,8 @@ st.markdown("Créez l'application mobile pour les livreurs en 1 clic !")
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Correction ici : utilisation de la version "latest" pour éviter l'erreur
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
 except:
     st.error("Erreur : La clé API n'est pas configurée dans les paramètres (Secrets) du site.")
     st.stop()
