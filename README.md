@@ -13,22 +13,21 @@ def generate_final_html(lines):
         consigne = parts[2].strip().upper() if len(parts) > 2 else ""
         
         is_stop = "PAS" in consigne
-        badge = f'<div class="badge-stop">⚠️ PAS DE JOURNAL LE LUNDI</div>' if is_stop else ""
-        border_color = "#ef4444" if is_stop else "#1a73e8"
+        badge = f'<div style="color:red; font-weight:bold; font-size:11px;">⚠️ PAS DE JOURNAL</div>' if is_stop else ""
         
         clean_adr = adr.replace(" ", "+")
         maps_url = f"https://www.google.com/maps/search/?api=1&query={clean_adr}"
         
         cards_html += f"""
-        <div class="card" id="card{i}" style="border-left: 8px solid {border_color};">
-            <div class="card-info">
-                <div class="client-nom">{nom}</div>
-                <div class="client-adr">{adr}</div>
+        <div class="card" id="card{i}" style="border-left: 8px solid {'red' if is_stop else '#1a73e8'};">
+            <div style="flex: 1;">
+                <div class="nom">{nom}</div>
+                <div class="adr">{adr}</div>
                 {badge}
             </div>
-            <div class="card-actions">
-                <button onclick="markDone({i})" id="btn{i}" class="btn-valider">VALIDER</button>
-                <a href="{maps_url}" target="_blank" class="btn-maps">📍</a>
+            <div class="btns">
+                <button onclick="valider({i})" id="btn{i}">VALIDER</button>
+                <a href="{maps_url}" target="_blank">📍</a>
             </div>
         </div>
         """
@@ -40,63 +39,48 @@ def generate_final_html(lines):
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
-            body {{ font-family: sans-serif; background: #f0f2f5; padding: 10px; margin: 0; }}
-            .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; position: sticky; top: 0; background: #f0f2f5; padding: 10px 0; z-index: 100; }}
-            .btn-top {{ border: none; padding: 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; color: white; }}
+            body {{ font-family: sans-serif; background: #eee; padding: 10px; }}
+            .header {{ display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 10px; margin-bottom: 10px; border-bottom: 3px solid #1a73e8; }}
             
-            .card {{ background: white; margin-bottom: 10px; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }}
-            .client-nom {{ font-size: 16px; font-weight: 800; color: #1a73e8; }}
-            .client-adr {{ font-size: 13px; color: #4b5563; }}
-            .badge-stop {{ color: #ef4444; font-weight: bold; font-size: 12px; }}
+            .card {{ background: white; margin-bottom: 10px; padding: 12px; border-radius: 10px; display: flex; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }}
+            .nom {{ font-size: 14px; font-weight: bold; color: #1a73e8; }}
+            .adr {{ font-size: 12px; color: #444; }}
             
-            .btn-valider {{ background: #eee; border: 1px solid #ccc; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }}
-            .btn-maps {{ text-decoration: none; border: 2px solid #1a73e8; padding: 8px; border-radius: 8px; font-size: 20px; }}
+            .btns {{ display: flex; align-items: center; gap: 5px; margin-left: 10px; }}
             
-            /* État Validé */
-            .done {{ background: #d1fae5 !important; opacity: 0.6; }}
-            .done .btn-valider {{ background: #22c55e !important; color: white; border: none; }}
+            button {{ background: #f3f4f6; border: 1px solid #aaa; padding: 12px 8px; border-radius: 8px; font-weight: bold; font-size: 10px; cursor: pointer; min-width: 70px; }}
+            a {{ text-decoration: none; background: white; border: 2px solid #1a73e8; padding: 8px 10px; border-radius: 8px; font-size: 18px; display: inline-block; }}
+            
+            /* Mode Validé */
+            .fait {{ background: #d1fae5 !important; opacity: 0.7; }}
+            .fait button {{ background: #22c55e !important; color: white; border: none; }}
             
             /* Mode Compact */
-            .compact-mode .card {{ padding: 5px 15px; margin-bottom: 5px; }}
-            .compact-mode .client-nom {{ font-size: 14px; }}
+            .compact .card {{ padding: 5px 10px; margin-bottom: 4px; }}
+            .compact .nom {{ font-size: 12px; }}
         </style>
     </head>
     <body>
         <div class="header">
-            <strong style="color:#1a73e8;">🗞️ MA TOURNÉE</strong>
+            <strong>🗞️ MA TOURNÉE</strong>
             <div>
-                <button onclick="toggleCompact()" class="btn-top" style="background:#4b5563;">🔍 VUE</button>
-                <button onclick="resetAll()" class="btn-top" style="background:#ef4444;">🔄 RESET</button>
+                <button onclick="document.body.classList.toggle('compact')" style="background:#4b5563; color:white;">🔍 VUE</button>
+                <button onclick="window.location.reload()" style="background:red; color:white;">🔄 RESET</button>
             </div>
         </div>
         
-        <div id="liste-container">{cards_html}</div>
+        <div id="liste">{cards_html}</div>
 
         <script>
-            function markDone(id) {{
+            function valider(id) {{
                 var card = document.getElementById('card' + id);
                 var btn = document.getElementById('btn' + id);
-                if (card.classList.contains('done')) {{
-                    card.classList.remove('done');
+                if (card.classList.contains('fait')) {{
+                    card.classList.remove('fait');
                     btn.innerText = 'VALIDER';
                 }} else {{
-                    card.classList.add('done');
+                    card.classList.add('fait');
                     btn.innerText = '✅ FAIT';
-                }}
-            }}
-            
-            function toggleCompact() {{
-                document.getElementById('liste-container').classList.toggle('compact-mode');
-            }}
-
-            function resetAll() {{
-                if(confirm('Réinitialiser ?')) {{
-                    var cards = document.getElementsByClassName('card');
-                    for(var i=0; i<cards.length; i++) {{
-                        cards[i].classList.remove('done');
-                        var btn = cards[i].getElementsByTagName('button')[0];
-                        btn.innerText = 'VALIDER';
-                    }}
                 }}
             }}
         </script>
@@ -104,10 +88,10 @@ def generate_final_html(lines):
     </html>
     """
 
-st.title("🗞️ Configurateur Final")
-data_input = st.text_area("Colle ta liste ici :", height=300)
+st.title("🗞️ Configurateur (Dernier essai)")
+data = st.text_area("Liste des clients (NOM ; ADRESSE ; OPTION) :", height=300)
 
 if st.button("🚀 GÉNÉRER"):
-    if data_input:
-        html = generate_final_html(data_input.split("\n"))
+    if data:
+        html = generate_final_html(data.split("\n"))
         st.download_button("📥 TÉLÉCHARGER", html, "Tournee.html", "text/html")
