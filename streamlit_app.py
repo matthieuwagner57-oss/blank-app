@@ -13,21 +13,22 @@ def generate_final_html(lines):
         consigne = parts[2].strip().upper() if len(parts) > 2 else ""
         
         is_stop = "PAS" in consigne
-        badge = f'<div style="color:red; font-weight:bold; font-size:11px;">⚠️ PAS DE JOURNAL</div>' if is_stop else ""
+        badge = f'<div class="badge-stop">⚠️ PAS DE JOURNAL LE LUNDI</div>' if is_stop else ""
+        border_color = "#ef4444" if is_stop else "#1a73e8"
         
         clean_adr = adr.replace(" ", "+")
         maps_url = f"https://www.google.com/maps/search/?api=1&query={clean_adr}"
         
         cards_html += f"""
-        <div class="card" id="card{i}" style="border-left: 8px solid {'red' if is_stop else '#1a73e8'};">
-            <div style="flex: 1;">
-                <div class="nom">{nom}</div>
-                <div class="adr">{adr}</div>
+        <div class="card" id="card{i}" style="border-left: 6px solid {border_color};">
+            <div class="card-content">
+                <div class="client-nom">{nom}</div>
+                <div class="client-adr">{adr}</div>
                 {badge}
             </div>
-            <div class="btns">
-                <button onclick="valider({i})" id="btn{i}">VALIDER</button>
-                <a href="{maps_url}" target="_blank">📍</a>
+            <div class="card-btns">
+                <button onclick="markDone({i})" id="btn{i}" class="btn-valider">VALIDER</button>
+                <a href="{maps_url}" target="_blank" class="btn-maps">📍</a>
             </div>
         </div>
         """
@@ -39,48 +40,69 @@ def generate_final_html(lines):
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
-            body {{ font-family: sans-serif; background: #eee; padding: 10px; }}
-            .header {{ display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 10px; margin-bottom: 10px; border-bottom: 3px solid #1a73e8; }}
+            body {{ font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 10px; margin: 0; }}
             
-            .card {{ background: white; margin-bottom: 10px; padding: 12px; border-radius: 10px; display: flex; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }}
-            .nom {{ font-size: 14px; font-weight: bold; color: #1a73e8; }}
-            .adr {{ font-size: 12px; color: #444; }}
+            /* Header Fixe */
+            .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; position: sticky; top: 0; background: #f0f2f5; padding: 10px 5px; z-index: 1000; border-bottom: 2px solid #ddd; }}
+            .controls {{ display: flex; gap: 10px; }}
+            .btn-top {{ border: none; padding: 10px 15px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; color: white; }}
+
+            /* Style des Cartes */
+            .card {{ background: white; margin-bottom: 10px; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }}
+            .card-content {{ flex: 1; }}
+            .client-nom {{ font-size: 15px; font-weight: 800; color: #1a73e8; }}
+            .client-adr {{ font-size: 12px; color: #4b5563; font-weight: 600; }}
+            .badge-stop {{ color: #ef4444; font-weight: bold; font-size: 11px; margin-top: 4px; }}
             
-            .btns {{ display: flex; align-items: center; gap: 5px; margin-left: 10px; }}
+            /* Boutons Actions */
+            .card-btns {{ display: flex; align-items: center; gap: 10px; margin-left: 10px; }}
+            .btn-valider {{ background: #f3f4f6; border: 1px solid #d1d5db; padding: 12px 10px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; min-width: 85px; }}
+            .btn-maps {{ text-decoration: none; border: 2px solid #1a73e8; color: #1a73e8; padding: 8px 12px; border-radius: 8px; font-size: 18px; line-height: 1; }}
             
-            button {{ background: #f3f4f6; border: 1px solid #aaa; padding: 12px 8px; border-radius: 8px; font-weight: bold; font-size: 10px; cursor: pointer; min-width: 70px; }}
-            a {{ text-decoration: none; background: white; border: 2px solid #1a73e8; padding: 8px 10px; border-radius: 8px; font-size: 18px; display: inline-block; }}
+            /* États Spéciaux */
+            .done {{ opacity: 0.5; background: #d1fae5 !important; border-left-color: #9ca3af !important; }}
+            .done .btn-valider {{ background: #22c55e !important; color: white; border: none; }}
             
-            /* Mode Validé */
-            .fait {{ background: #d1fae5 !important; opacity: 0.7; }}
-            .fait button {{ background: #22c55e !important; color: white; border: none; }}
-            
-            /* Mode Compact */
-            .compact .card {{ padding: 5px 10px; margin-bottom: 4px; }}
-            .compact .nom {{ font-size: 12px; }}
+            .compact-mode .card {{ padding: 8px 15px; margin-bottom: 5px; }}
+            .compact-mode .client-nom {{ font-size: 13px; }}
         </style>
     </head>
     <body>
         <div class="header">
-            <strong>🗞️ MA TOURNÉE</strong>
-            <div>
-                <button onclick="document.body.classList.toggle('compact')" style="background:#4b5563; color:white;">🔍 VUE</button>
-                <button onclick="window.location.reload()" style="background:red; color:white;">🔄 RESET</button>
+            <span style="font-weight:bold; color:#1a73e8;">🗞️ MA TOURNÉE</span>
+            <div class="controls">
+                <button onclick="toggleCompact()" class="btn-top" style="background:#4b5563;">🔍 VUE</button>
+                <button onclick="resetAll()" class="btn-top" style="background:#ef4444;">🔄 RESET</button>
             </div>
         </div>
         
-        <div id="liste">{cards_html}</div>
+        <div id="liste-container">{cards_html}</div>
 
         <script>
-            function valider(id) {{
+            function markDone(id) {{
                 var card = document.getElementById('card' + id);
                 var btn = document.getElementById('btn' + id);
-                if (card.classList.contains('fait')) {{
-                    card.classList.remove('fait');
-                    btn.innerText = 'VALIDER';
+                if (card.classList.contains('done')) {{
+                    card.classList.remove('done');
+                    btn.innerHTML = 'VALIDER';
                 }} else {{
-                    card.classList.add('fait');
-                    btn.innerText = '✅ FAIT';
+                    card.classList.add('done');
+                    btn.innerHTML = '✅ FAIT';
+                }}
+            }}
+            
+            function toggleCompact() {{
+                document.getElementById('liste-container').classList.toggle('compact-mode');
+            }}
+
+            function resetAll() {{
+                if(confirm('Tout recommencer ?')) {{
+                    var cards = document.getElementsByClassName('card');
+                    for(var i=0; i<cards.length; i++) {{
+                        cards[i].classList.remove('done');
+                        var btns = cards[i].getElementsByTagName('button');
+                        if(btns.length > 0) btns[0].innerHTML = 'VALIDER';
+                    }}
                 }}
             }}
         </script>
@@ -88,10 +110,10 @@ def generate_final_html(lines):
     </html>
     """
 
-st.title("🗞️ Configurateur (Dernier essai)")
-data = st.text_area("Liste des clients (NOM ; ADRESSE ; OPTION) :", height=300)
+st.title("🗞️ Configurateur Tournée")
+data_input = st.text_area("Colle ta liste ici (NOM ; ADRESSE ; OPTION) :", height=300)
 
-if st.button("🚀 GÉNÉRER"):
-    if data:
-        html = generate_final_html(data.split("\n"))
-        st.download_button("📥 TÉLÉCHARGER", html, "Tournee.html", "text/html")
+if st.button("🚀 GÉNÉRER L'APPLI"):
+    if data_input:
+        html_code = generate_final_html(data_input.split("\n"))
+        st.download_button("📥 TÉLÉCHARGER", html_code, "MaTournee.html", "text/html")
