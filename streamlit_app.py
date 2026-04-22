@@ -16,55 +16,68 @@ except:
     st.error("Erreur : Clé API manquante dans les Secrets.")
     st.stop()
 
-# --- LE PROMPT "DESIGN PARFAIT" ---
-# Ce prompt force l'IA à utiliser le code exact de ma démo
+# --- LE PROMPT "MOULE FIGÉ" (CONCEPTION STRICTE) ---
+# J'ai figé mon design exact dans ce prompt pour que l'IA ne puisse rien changer au style.
 system_prompt = """
-Tu es un expert développeur. Ton unique mission est de remplir le modèle HTML ci-dessous avec les adresses trouvées.
-INTERDICTION de changer le CSS ou la structure.
+Tu es un robot chargé de remplir un modèle HTML. Tu ne dois RIEN changer au design (CSS).
+Ta seule mission est de lire la photo de la tournée et de générer une carte HTML pour CHAQUE adresse trouvée, en utilisant EXACTEMENT le modèle ci-dessous.
 
-RELIRE LA PHOTO/TEXTE :
-1. Liste chaque adresse.
-2. Identifie les consignes (ex: 'Pas de journaux', 'Pas le lundi').
-3. Génère le lien Google Maps : https://www.google.com/maps/search/?api=1&query=[ADRESSE_ENCODÉE]
-
-STRUCTURE DE CHAQUE CARTE :
-<input type="checkbox" id="check[ID]" class="card-input">
-<label for="check[ID]" class="card">
-    <div class="card-content">
-        <div class="address-text">[L'ADRESSE ICI EN MAJUSCULES]</div>
-        <div class="special-instruction">[LA CONSIGNE EN ROUGE SI ELLE EXISTE SINON VIDE]</div>
+MODÈLE HTML À RÉPÉTER POUR CHAQUE ADRESSE :
+'''
+<div class="card">
+    <div class="card-check">
+        <input type="checkbox" class="delivery-checkbox" id="check[ID_UNIQUE]">
     </div>
-    <div class="card-actions">
-        <a href="https://www.google.com/maps/search/?api=1&query=[ADRESSE]" class="maps-button" target="_blank">📍</a>
+    <div class="card-body">
+        <div class="card-address">[L'ADRESSE COMPLÈTE EN MAJUSCULES]</div>
+        <div class="card-instruction">[LA CONSIGNE SPÉCIALE EN ROUGE, OU VIDE SI AUCUNE]</div>
     </div>
-</label>
+    <div class="card-action">
+        <a href="http://googleusercontent.com/maps.google.com/6" class="maps-btn" target="_blank">📍 Google Maps</a>
+    </div>
+</div>
+'''
 
-RENVOIE UNIQUEMENT LE CODE HTML COMPLET :
+RÈGLES DE REMPLISSAGE :
+1. Analyse la photo fournie (ex: celle de Forbach).
+2. Pour chaque ligne, crée une carte en remplaçant :
+   - [L'ADRESSE COMPLÈTE EN MAJUSCULES] par l'adresse lue (ex: 13 RUE DU ROCHER, 57600 FORBACH).
+   - [LA CONSIGNE SPÉCIALE EN ROUGE] par la consigne si détectée (ex: 'Pas de journaux le lundi').
+   - Le lien Google Maps par l'adresse encodée.
+3. Ne renvoie AUCUN texte avant ou après le code <html>.
+
+VOICI LE CODE HTML COMPLET QUE TU DOIS RENVOYER (AVEC LE DESIGN FIGÉ) :
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { font-family: -apple-system, sans-serif; background-color: #f0f2f5; margin: 0; padding: 75px 15px 30px 15px; }
-        .header { position: fixed; top: 0; left: 0; width: 100%; background: #1a73e8; color: white; padding: 18px; font-weight: bold; text-align: center; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-size: 18px; }
-        .card-list { display: flex; flex-direction: column; gap: 12px; max-width: 500px; margin: auto; }
-        .card { background: white; border-radius: 12px; padding: 18px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.08); cursor: pointer; border-left: 6px solid #1a73e8; transition: 0.2s; }
-        .card-content { flex: 1; pointer-events: none; }
-        .address-text { font-size: 16px; font-weight: bold; color: #1c1e21; line-height: 1.3; }
-        .special-instruction { color: #d93025; font-size: 13px; font-weight: bold; margin-top: 6px; text-transform: uppercase; }
-        .card-actions { margin-left: 15px; }
-        .maps-button { background: #1a73e8; color: white; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 22px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        body { font-family: -apple-system, system-serif; background-color: #f6f8fa; margin: 0; padding: 70px 15px 20px 15px; color: #1c1e21; }
+        .header { position: fixed; top: 0; left: 0; width: 100%; background: white; padding: 15px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 1000; }
+        .header-title { font-size: 18px; font-weight: bold; margin: 0; }
+        .header-subtitle { font-size: 14px; color: #65676b; margin-top: 2px; }
+        .card-list { display: flex; flex-direction: column; gap: 15px; max-width: 500px; margin: auto; }
+        .card { background: white; border-radius: 12px; padding: 18px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.08); transition: 0.2s; }
+        .card-check { margin-right: 15px; }
+        .delivery-checkbox { width: 22px; height: 22px; cursor: pointer; }
+        .card-body { flex: 1; margin-right: 15px; }
+        .card-address { font-size: 16px; font-weight: 700; line-height: 1.3; }
+        .card-instruction { color: #d93025; font-size: 13px; font-weight: bold; margin-top: 5px; }
+        .card-action { flex-shrink: 0; }
+        .maps-btn { background-color: #1a73e8; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
         
-        /* EFFET COCHÉ */
-        .card-input { display: none; }
-        .card-input:checked + .card { background: #e8eaed; border-left-color: #70757a; opacity: 0.5; box-shadow: none; transform: scale(0.98); }
-        .card-input:checked + .card .address-text { text-decoration: line-through; color: #70757a; }
-        .card-input:checked + .card .maps-button { background: #70757a; }
+        /* EFFET QUAND ON COCHE L'ADRESSE */
+        .card:has(.delivery-checkbox:checked) { background-color: #f0f2f5; opacity: 0.6; box-shadow: none; filter: grayscale(100%); }
+        .card:has(.delivery-checkbox:checked) .card-address { text-decoration: line-through; color: #65676b; }
+        .card:has(.delivery-checkbox:checked) .maps-btn { background-color: #8c9199; }
     </style>
 </head>
 <body>
-    <div class="header">MA TOURNÉE RL</div>
+    <div class="header">
+        <div class="header-title">Ma Tournée RL</div>
+        <div class="header-subtitle">Cliquez sur Maps pour l'itinéraire</div>
+    </div>
     <div class="card-list">
         [TES_CARTES_ICI]
     </div>
@@ -74,9 +87,11 @@ RENVOIE UNIQUEMENT LE CODE HTML COMPLET :
 
 # --- FONCTION NETTOYAGE ---
 def clean_html(raw_html):
-    return re.sub(r'```html|```', '', raw_html).strip()
+    cleaned = re.sub(r'```html', '', raw_html)
+    cleaned = re.sub(r'```', '', cleaned)
+    return cleaned.strip()
 
-# --- FONCTIONS AI ---
+# --- FONCTIONS AI (AMÉLIORÉES) ---
 def ask_ai_text(text_data):
     try:
         response = client.chat.completions.create(
@@ -87,47 +102,48 @@ def ask_ai_text(text_data):
     except Exception as e: return None, str(e)
 
 def ask_ai_image(img):
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
     try:
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": system_prompt},
-                      {"role": "user", "content": [{"type": "text", "text": "Analyse cette photo :"}, {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}"}}]}]
+                      {"role": "user", "content": [{"type": "text", "text": "Analyse cette photo de tournée pour remplir le moule :"}, {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}"}}]}]
         )
         return clean_html(response.choices[0].message.content), None
     except Exception as e: return None, str(e)
 
 # --- INTERFACE STREAMLIT ---
-st.title("🗞️ Application Tournée RL")
-st.markdown("Générez votre liste de livraison interactive.")
+st.title("🗞️ Application Tournée RL (Version Finale)")
+st.markdown("Générez votre liste de livraison interactive à l'identique de la démo.")
 
 tabs = st.tabs(["📸 Photo", "📄 PDF / Texte", "✍️ Manuel"])
 
 # ONGLET PHOTO
 with tabs[0]:
-    up_img = st.file_uploader("Prendre en photo la feuille :", type=["jpg", "png", "jpeg"])
+    up_img = st.file_uploader("Prendre en photo la feuille de tournée :", type=["jpg", "png", "jpeg"])
     if st.button("🚀 GÉNÉRER DEPUIS PHOTO") and up_img:
-        with st.spinner("Analyse de l'image en cours... patientez..."):
+        with st.spinner("Analyse et remplissage du moule en cours..."):
             res, err = ask_ai_image(Image.open(up_img))
             if res:
-                st.success("Application prête !")
-                st.download_button("📥 TÉLÉCHARGER MON APP", res, "Tournee.html", "text/html")
-            else: st.error(err)
+                st.success("Application générée avec succès !")
+                st.download_button("📥 TÉLÉCHARGER MON APP (HTML)", res, "Tournee.html", "text/html")
+            else: st.error(f"Erreur technique : {err}")
 
 # ONGLET PDF
 with tabs[1]:
     up_file = st.file_uploader("Uploader un fichier :", type=["pdf", "txt"])
     if st.button("🚀 GÉNÉRER DEPUIS FICHIER") and up_file:
-        with st.spinner("Lecture du fichier..."):
+        with st.spinner("Lecture et analyse..."):
             txt = ""
             if up_file.name.endswith(".pdf"):
                 pdf = PyPDF2.PdfReader(up_file)
                 for p in pdf.pages: txt += p.extract_text()
             else: txt = up_file.read().decode()
             res, err = ask_ai_text(txt)
-            if res: st.download_button("📥 TÉLÉCHARGER MON APP", res, "Tournee.html", "text/html")
+            if res: st.download_button("📥 TÉLÉCHARGER MON APP (HTML)", res, "Tournee.html", "text/html")
 
 # ONGLET MANUEL
 with tabs[2]:
@@ -135,7 +151,7 @@ with tabs[2]:
     if st.button("🚀 GÉNÉRER DEPUIS TEXTE") and txt_input:
         with st.spinner("Analyse du texte..."):
             res, err = ask_ai_text(txt_input)
-            if res: st.download_button("📥 TÉLÉCHARGER MON APP", res, "Tournee.html", "text/html")
+            if res: st.download_button("📥 TÉLÉCHARGER MON APP (HTML)", res, "Tournee.html", "text/html")
 
 st.divider()
-st.caption("Créé par Matthieu WAGNER - Version Finale Stabilité")
+st.caption("Créé par Matthieu WAGNER - Version Finale Identique")
