@@ -13,29 +13,27 @@ def generate_final_html(lines):
         consigne = parts[2].strip().upper() if len(parts) > 2 else ""
         
         is_stop = "PAS" in consigne
-        badge = f'<div style="color:red; font-weight:bold; font-size:11px;">⚠️ PAS DE JOURNAL LE LUNDI</div>' if is_stop else ""
         color = "red" if is_stop else "#1a73e8"
+        badge = f'<div style="color:red; font-weight:bold; font-size:11px;">⚠️ PAS DE JOURNAL</div>' if is_stop else ""
         
         clean_adr = adr.replace(" ", "+")
         maps_url = f"https://www.google.com/maps/search/?api=1&query={clean_adr}"
         
-        # Structure de ligne forcée par tableau pour éviter que Maps ne saute en dessous
+        # TECHNIQUE DU CHECKBOX INVISIBLE : Marche sans script !
         cards_html += f"""
-        <div id="row{i}" style="background:white; margin-bottom:6px; padding:10px; border-radius:8px; border-left:6px solid {color}; box-shadow:0 1px 2px rgba(0,0,0,0.1);">
-            <table style="width:100%; border-collapse:collapse;">
-                <tr>
-                    <td style="vertical-align:middle;">
-                        <div style="font-size:14px; font-weight:800; color:#1a73e8;">{nom}</div>
-                        <div style="font-size:12px; color:#444; font-weight:600;">{adr}</div>
-                        {badge}
-                    </td>
-                    <td style="width:110px; text-align:right; white-space:nowrap; vertical-align:middle;">
-                        <button onclick="var r=document.getElementById('row{i}'); if(r.style.opacity=='0.5'){{r.style.opacity='1'; r.style.background='white'; this.innerHTML='VALIDER'; this.style.background='#eee';}}else{{r.style.opacity='0.5'; r.style.background='#d1fae5'; this.innerHTML='✅ FAIT'; this.style.background='#22c55e';}}" 
-                                style="background:#eee; border:1px solid #ccc; padding:10px 5px; border-radius:6px; font-size:10px; font-weight:bold; cursor:pointer; width:70px;">VALIDER</button>
-                        <a href="{maps_url}" target="_blank" style="text-decoration:none; border:2px solid #1a73e8; color:#1a73e8; padding:8px; border-radius:6px; font-size:16px; background:white; display:inline-block; margin-left:5px;">📍</a>
-                    </td>
-                </tr>
-            </table>
+        <div class="item">
+            <input type="checkbox" id="check{i}" class="toggle">
+            <label for="check{i}" class="card" style="border-left: 6px solid {color};">
+                <div class="info">
+                    <div class="nom">{nom}</div>
+                    <div class="adr">{adr}</div>
+                    {badge}
+                </div>
+                <div class="actions">
+                    <span class="btn-v">VALIDER</span>
+                    <a href="{maps_url}" target="_blank" class="btn-m" onclick="event.stopPropagation();">📍</a>
+                </div>
+            </label>
         </div>
         """
     
@@ -45,24 +43,45 @@ def generate_final_html(lines):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+            body {{ font-family: sans-serif; background: #f0f2f5; padding: 10px; margin: 0; }}
+            .header {{ background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1a73e8; }}
+            
+            .toggle {{ display: none; }} /* On cache la case à cocher */
+            
+            .card {{ background: white; margin-bottom: 8px; padding: 12px; border-radius: 10px; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); cursor: pointer; display: block; display: flex; justify-content: space-between; }}
+            .nom {{ font-size: 14px; font-weight: bold; color: #1a73e8; }}
+            .adr {{ font-size: 12px; color: #444; }}
+            
+            .actions {{ display: flex; align-items: center; gap: 8px; pointer-events: none; }}
+            .btn-v {{ background: #eee; border: 1px solid #ccc; padding: 8px; border-radius: 6px; font-size: 10px; font-weight: bold; pointer-events: auto; }}
+            .btn-m {{ text-decoration: none; border: 2px solid #1a73e8; padding: 6px 10px; border-radius: 6px; font-size: 18px; pointer-events: auto; background: white; }}
+            
+            /* LE SECRET : Si la case est cochée, on change le style de la carte juste après */
+            .toggle:checked + .card {{ background: #d1fae5; opacity: 0.6; }}
+            .toggle:checked + .card .btn-v {{ background: #22c55e; color: white; border-color: #22c55e; }}
+            .toggle:checked + .card .btn-v::after {{ content: " ✅ FAIT"; }}
+            .toggle:checked + .card .btn-v {{ font-size: 0; }}
+            .toggle:checked + .card .btn-v::after {{ font-size: 10px; }}
+
+            /* RESET : On recharge la page pour tout décocher */
+            .btn-reset {{ background: red; color: white; border: none; padding: 8px; border-radius: 5px; font-size: 11px; font-weight: bold; }}
+        </style>
     </head>
-    <body style="font-family:sans-serif; background:#f0f2f5; padding:10px; margin:0;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; position:sticky; top:0; background:#f0f2f5; padding:10px 0; z-index:1000;">
-            <b style="color:#1a73e8; font-size:18px;">🗞️ MA TOURNÉE</b>
-            <div style="display:flex; gap:5px;">
-                <button onclick="var s=document.getElementById('L').style; s.transformOrigin='top left'; if(s.transform=='scale(0.8)'){{s.transform='scale(1)';}}else{{s.transform='scale(0.8)';}}" style="background:#4b5563; color:white; border:none; padding:8px 10px; border-radius:6px; font-size:11px; font-weight:bold;">🔍 VUE</button>
-                <button onclick="window.location.reload()" style="background:#ef4444; color:white; border:none; padding:8px 10px; border-radius:6px; font-size:11px; font-weight:bold;">🔄 RESET</button>
-            </div>
+    <body>
+        <div class="header">
+            <strong style="color:#1a73e8;">🗞️ MA TOURNÉE</strong>
+            <button onclick="window.location.reload()" class="btn-reset">🔄 RESET</button>
         </div>
-        <div id="L">{cards_html}</div>
+        <div id="liste">{cards_html}</div>
     </body>
     </html>
     """
 
-st.title("🗞️ Scanner RL - Final")
-data = st.text_area("Colle ta liste NOM ; ADRESSE ; OPTION", height=300)
+st.title("🗞️ Scanner RL - Version Incassable")
+data = st.text_area("Liste des clients (NOM ; ADRESSE ; OPTION) :", height=300)
 
-if st.button("🚀 GÉNÉRER L'APPLI"):
+if st.button("🚀 GÉNÉRER"):
     if data:
         html = generate_final_html(data.split("\n"))
         st.download_button("📥 TÉLÉCHARGER", html, "Tournee.html", "text/html")
