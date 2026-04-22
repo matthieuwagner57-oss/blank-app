@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 import PyPDF2
 
@@ -9,12 +9,11 @@ st.set_page_config(page_title="Générateur de Tournée", page_icon="🚚", layo
 st.title("🚚 Générateur d'Application de Tournée")
 st.markdown("Créez l'application mobile pour les livreurs en 1 clic !")
 
-# Connexion sécurisée
+# Connexion avec le NOUVEAU système Google
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
-    # ON FORCE LE MOTEUR QUI MARCHE CHEZ TOI :
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    # Nouvelle méthode de connexion
+    client = genai.Client(api_key=api_key)
 except:
     st.error("Erreur : La clé API n'est pas configurée dans les paramètres secrets.")
     st.stop()
@@ -32,15 +31,18 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
-# --- FONCTION SÉCURISÉE ---
+# --- FONCTION SÉCURISÉE (NOUVELLE SYNTAXE) ---
 def ask_ai(content_data):
     try:
-        response = model.generate_content([system_prompt, content_data])
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[system_prompt, content_data]
+        )
         return response.text, None
     except Exception as e:
         erreur = str(e)
         if "429" in erreur or "Quota" in erreur:
-            return None, "Vitesse limite atteinte (5 par minute maximum). Attendez 1 minute chrono et cliquez à nouveau !"
+            return None, "Vitesse limite atteinte. Vérifiez votre compte Google AI."
         return None, erreur
 
 # --- LES 3 ONGLETS ---
