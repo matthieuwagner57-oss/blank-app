@@ -2,7 +2,6 @@ import streamlit as st
 from google import genai
 from PIL import Image
 import PyPDF2
-import time
 
 st.set_page_config(page_title="Générateur de Tournée", page_icon="🚚", layout="centered")
 
@@ -31,10 +30,10 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
-# --- FONCTION AVEC CASCADE DE SECOURS (LE TANK) ---
+# --- FONCTION MODE DIAGNOSTIC (SANS FILTRE) ---
 def ask_ai(content_data):
-    # La liste de nos moteurs du meilleur au plan B
-    modeles_a_tester = ['gemini-2.5-flash', 'gemini-2.0-flash']
+    modeles_a_tester = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+    journal_erreurs = ""
     
     for nom_modele in modeles_a_tester:
         try:
@@ -45,27 +44,11 @@ def ask_ai(content_data):
             return response.text, None
             
         except Exception as e:
-            erreur = str(e)
-            
-            # Si le moteur actuel est surchargé (503)
-            if "503" in erreur or "high demand" in erreur:
-                # On ne fait rien, la boucle 'for' passe automatiquement au modèle suivant !
-                continue 
+            # On enregistre la VRAIE erreur de chaque modèle
+            journal_erreurs += f"\n\n🚨 Erreur sur le modèle {nom_modele} :\n{str(e)}"
                 
-            # Si on a cliqué trop vite (limite de vitesse)
-            elif "429" in erreur or "Quota" in erreur:
-                return None, "Vitesse limite atteinte. Patientez 10 secondes avant de re-cliquer."
-                
-            # Si Google a carrément supprimé le modèle (404)
-            elif "404" in erreur:
-                continue # On passe au modèle suivant
-                
-            # Autre erreur bloquante
-            else:
-                return None, erreur
-                
-    # Si la boucle est terminée et qu'AUCUN modèle n'a fonctionné :
-    return None, "Tous les serveurs mondiaux de Google sont surchargés. Réessayez dans 2 minutes !"
+    # Si tout échoue, on affiche tout le rapport brut
+    return None, f"MODE DIAGNOSTIC ACTIVÉ. Voici ce que Google répond vraiment : {journal_erreurs}"
 
 # --- LES 3 ONGLETS ---
 tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Manuel"])
@@ -74,7 +57,7 @@ tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Ma
 with tab1:
     uploaded_image = st.file_uploader("Prenez en photo la feuille de tournée :", type=["jpg", "jpeg", "png"])
     if st.button("🚀 Générer depuis la photo") and uploaded_image:
-        with st.spinner("L'IA lit la photo... (Recherche du meilleur serveur disponible)"):
+        with st.spinner("L'IA lit la photo... (Mode Diagnostic)"):
             img = Image.open(uploaded_image)
             html_result, error = ask_ai(img)
             
@@ -118,6 +101,5 @@ with tab3:
             else:
                 st.error(f"❌ {error}")
 
-# --- SIGNATURE DU CRÉATEUR ---
 st.divider()
 st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>✨ Créé sur mesure par <b>Matthieu WAGNER</b> pour l'équipe de livraison 🗞️</p>", unsafe_allow_html=True)
