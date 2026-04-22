@@ -14,7 +14,7 @@ try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
     # On utilise le nom universel du modèle
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
 except:
     st.error("Erreur : La clé API n'est pas configurée dans les paramètres (Secrets) du site.")
     st.stop()
