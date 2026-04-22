@@ -75,3 +75,7 @@ with tab3:
             
             st.success("✅ Application générée avec succès !")
             st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
+
+# --- SIGNATURE DU CRÉATEUR ---
+st.divider()
+st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>✨ Créé sur mesure par <b>Matthieu</b> pour l'équipe de livraison 🗞️</p>", unsafe_allow_html=True)
