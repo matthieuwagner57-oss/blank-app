@@ -13,13 +13,13 @@ try:
     api_key = st.secrets["OPENAI_API_KEY"]
     client = OpenAI(api_key=api_key)
 except:
-    st.error("Erreur : Clé API manquante dans les Secrets.")
+    st.error("Erreur : Clé API manquante.")
     st.stop()
 
 # --- PROMPT D'EXTRACTION ---
 system_prompt = """
 Tu es un robot d'extraction d'adresses. Pour chaque ligne lue, génère UNIQUEMENT ce bloc HTML.
-Pour le lien Maps, utilise l'adresse lue pour créer un lien vers Google Maps.
+Pour Maps, utilise ce format de lien : https://www.google.com/maps/search/[ADRESSE_ENCODEE]
 
 MODÈLE :
 <div class="card-wrapper">
@@ -32,15 +32,28 @@ MODÈLE :
             <div class="fait-btn">✅ FAIT</div>
         </div>
         <div class="card-action">
-            <a href="https://www.google.com/maps/search/?api=1&query=[ADRESSE_URL]" class="maps-btn" target="_blank" onclick="event.stopPropagation();">📍 Maps</a>
+            <a href="https://www.google.com/maps/search/[ADRESSE_ENCODEE]" class="maps-btn" target="_blank" onclick="event.stopPropagation();">📍 Maps</a>
         </div>
     </label>
 </div>
 """
 
-# --- LE MOULE HTML FINAL ---
+# --- LE MOULE HTML FINAL (MÉTHODE INFAILLIBLE) ---
 def generate_final_html(cards_html):
-    return f"""
+    # On sépare le JS pour éviter les conflits de caractères
+    js_code = """
+    <script>
+        function resetAll() {
+            var inputs = document.getElementsByClassName('card-input');
+            for(var i=0; i<inputs.length; i++) { inputs[i].checked = false; }
+        }
+        function toggleCompact() {
+            document.body.classList.toggle('compact');
+        }
+    </script>
+    """
+    
+    html_content = f"""
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -51,8 +64,8 @@ def generate_final_html(cards_html):
         .header {{ position: fixed; top: 0; left: 0; width: 100%; background: #1a73e8; color: white; padding: 15px; text-align: center; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-weight: bold; font-size: 18px; }}
         .top-bar {{ position: fixed; top: 55px; left: 0; width: 100%; background: white; padding: 12px; display: flex; justify-content: center; gap: 10px; z-index: 999; border-bottom: 1px solid #ddd; }}
         
-        .btn-reset {{ background: #fee2e2; border: 1px solid #ef4444; padding: 10px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; color: #dc2626; }}
-        .btn-compact {{ background: #f3f4f6; border: 1px solid #9ca3af; padding: 10px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; color: #4b5563; }}
+        .btn-reset {{ background: #fee2e2; border: 1px solid #ef4444; padding: 10px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; color: #dc2626; cursor:pointer; }}
+        .btn-compact {{ background: #f3f4f6; border: 1px solid #9ca3af; padding: 10px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; color: #4b5563; cursor:pointer; }}
         
         .card-list {{ display: flex; flex-direction: column; gap: 15px; max-width: 500px; margin: auto; }}
         .card {{ background: white; border-radius: 15px; padding: 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 8px solid #1a73e8; cursor: pointer; transition: 0.2s; }}
@@ -77,16 +90,20 @@ def generate_final_html(cards_html):
 <body id="mainBody">
     <div class="header">🗞️ MA TOURNÉE RL</div>
     <div class="top-bar">
-        <button class="btn-reset" onclick="document.querySelectorAll('.card-input').forEach(i=>i.checked=false)">🔄 TOUT DÉCOCHER</button>
-        <button class="btn-compact" onclick="document.body.classList.toggle('compact')">🔍 VUE COMPACTE</button>
+        <button class="btn-reset" onclick="resetAll()">🔄 TOUT DÉCOCHER</button>
+        <button class="btn-compact" onclick="toggleCompact()">🔍 VUE COMPACTE</button>
     </div>
-    <div class="card-list">{cards_html}</div>
+    <div class="card-list">
+        {cards_html}
+    </div>
+    {js_code}
 </body>
 </html>
     """
+    return html_content
 
 def ask_ai(data, is_image=False):
-    content = [{"type": "text", "text": "Extrais les adresses pour mon application de livraison."}]
+    content = [{"type": "text", "text": "Extrais les adresses."}]
     if is_image:
         buffered = io.BytesIO()
         data.save(buffered, format="PNG")
