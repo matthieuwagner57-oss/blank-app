@@ -31,13 +31,15 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
-# --- FONCTION AVEC PATIENCE AUTOMATIQUE ---
+# --- FONCTION AVEC CASCADE DE SECOURS (LE TANK) ---
 def ask_ai(content_data):
-    # L'ordinateur va essayer 3 fois maximum
-    for tentative in range(3):
+    # La liste de nos moteurs du meilleur au plan B
+    modeles_a_tester = ['gemini-2.5-flash', 'gemini-2.0-flash']
+    
+    for nom_modele in modeles_a_tester:
         try:
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model=nom_modele,
                 contents=[system_prompt, content_data]
             )
             return response.text, None
@@ -45,21 +47,25 @@ def ask_ai(content_data):
         except Exception as e:
             erreur = str(e)
             
-            # Si le serveur mondial a un pic de trafic (503)
+            # Si le moteur actuel est surchargé (503)
             if "503" in erreur or "high demand" in erreur:
-                if tentative < 2: # S'il reste des essais
-                    time.sleep(5) # On patiente 5 secondes
-                    continue      # Et on relance la boucle
-                else:
-                    return None, "Les serveurs mondiaux de Google sont surchargés. Réessayez dans quelques minutes !"
-                    
-            # Si on clique trop vite
-            elif "429" in erreur or "Quota" in erreur:
-                return None, "Vitesse limite atteinte. Patientez un peu avant de re-cliquer."
+                # On ne fait rien, la boucle 'for' passe automatiquement au modèle suivant !
+                continue 
                 
-            # Autre erreur inconnue
+            # Si on a cliqué trop vite (limite de vitesse)
+            elif "429" in erreur or "Quota" in erreur:
+                return None, "Vitesse limite atteinte. Patientez 10 secondes avant de re-cliquer."
+                
+            # Si Google a carrément supprimé le modèle (404)
+            elif "404" in erreur:
+                continue # On passe au modèle suivant
+                
+            # Autre erreur bloquante
             else:
                 return None, erreur
+                
+    # Si la boucle est terminée et qu'AUCUN modèle n'a fonctionné :
+    return None, "Tous les serveurs mondiaux de Google sont surchargés. Réessayez dans 2 minutes !"
 
 # --- LES 3 ONGLETS ---
 tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Manuel"])
@@ -68,7 +74,7 @@ tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Ma
 with tab1:
     uploaded_image = st.file_uploader("Prenez en photo la feuille de tournée :", type=["jpg", "jpeg", "png"])
     if st.button("🚀 Générer depuis la photo") and uploaded_image:
-        with st.spinner("L'IA lit la photo... (cela peut prendre quelques secondes si le serveur est occupé)"):
+        with st.spinner("L'IA lit la photo... (Recherche du meilleur serveur disponible)"):
             img = Image.open(uploaded_image)
             html_result, error = ask_ai(img)
             
