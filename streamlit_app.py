@@ -14,15 +14,14 @@ def generate_final_html(lines):
         
         is_stop = "PAS" in consigne
         color = "red" if is_stop else "#1a73e8"
-        badge = f'<div style="color:red; font-weight:bold; font-size:11px;">⚠️ PAS DE JOURNAL</div>' if is_stop else ""
+        badge = f'<div class="badge-stop">⚠️ PAS DE JOURNAL LE LUNDI</div>' if is_stop else ""
         
         clean_adr = adr.replace(" ", "+")
         maps_url = f"https://www.google.com/maps/search/?api=1&query={clean_adr}"
         
-        # TECHNIQUE DU CHECKBOX INVISIBLE : Marche sans script !
         cards_html += f"""
         <div class="item">
-            <input type="checkbox" id="check{i}" class="toggle">
+            <input type="checkbox" id="check{i}" class="toggle-done">
             <label for="check{i}" class="card" style="border-left: 6px solid {color};">
                 <div class="info">
                     <div class="nom">{nom}</div>
@@ -45,43 +44,64 @@ def generate_final_html(lines):
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
             body {{ font-family: sans-serif; background: #f0f2f5; padding: 10px; margin: 0; }}
-            .header {{ background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1a73e8; }}
             
-            .toggle {{ display: none; }} /* On cache la case à cocher */
+            /* INTERRUPTEURS INVISIBLES */
+            .toggle-done, #toggle-compact {{ display: none; }}
             
-            .card {{ background: white; margin-bottom: 8px; padding: 12px; border-radius: 10px; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); cursor: pointer; display: block; display: flex; justify-content: space-between; }}
-            .nom {{ font-size: 14px; font-weight: bold; color: #1a73e8; }}
-            .adr {{ font-size: 12px; color: #444; }}
+            /* HEADER */
+            .header {{ background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1a73e8; position: sticky; top: 0; z-index: 100; }}
+            .controls {{ display: flex; gap: 8px; }}
             
-            .actions {{ display: flex; align-items: center; gap: 8px; pointer-events: none; }}
-            .btn-v {{ background: #eee; border: 1px solid #ccc; padding: 8px; border-radius: 6px; font-size: 10px; font-weight: bold; pointer-events: auto; }}
-            .btn-m {{ text-decoration: none; border: 2px solid #1a73e8; padding: 6px 10px; border-radius: 6px; font-size: 18px; pointer-events: auto; background: white; }}
-            
-            /* LE SECRET : Si la case est cochée, on change le style de la carte juste après */
-            .toggle:checked + .card {{ background: #d1fae5; opacity: 0.6; }}
-            .toggle:checked + .card .btn-v {{ background: #22c55e; color: white; border-color: #22c55e; }}
-            .toggle:checked + .card .btn-v::after {{ content: " ✅ FAIT"; }}
-            .toggle:checked + .card .btn-v {{ font-size: 0; }}
-            .toggle:checked + .card .btn-v::after {{ font-size: 10px; }}
+            /* BOUTONS DU HAUT */
+            .btn-top {{ background: #4b5563; color: white; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; border: none; }}
+            .btn-reset {{ background: #ef4444; text-decoration: none; display: inline-block; }}
 
-            /* RESET : On recharge la page pour tout décocher */
-            .btn-reset {{ background: red; color: white; border: none; padding: 8px; border-radius: 5px; font-size: 11px; font-weight: bold; }}
+            /* CARTES */
+            .card {{ background: white; margin-bottom: 8px; padding: 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); cursor: pointer; }}
+            .nom {{ font-size: 14px; font-weight: bold; color: #1a73e8; }}
+            .adr {{ font-size: 12px; color: #444; font-weight: 600; }}
+            .badge-stop {{ color: red; font-weight: bold; font-size: 11px; margin-top: 4px; }}
+            
+            .actions {{ display: flex; align-items: center; gap: 10px; }}
+            .btn-v {{ background: #f3f4f6; border: 1px solid #ccc; padding: 10px 8px; border-radius: 8px; font-size: 10px; font-weight: bold; min-width: 70px; text-align: center; }}
+            .btn-m {{ text-decoration: none; border: 2.5px solid #1a73e8; padding: 8px 12px; border-radius: 8px; font-size: 18px; background: white; }}
+            
+            /* LOGIQUE DU VALIDER (SANS JS) */
+            .toggle-done:checked + .card {{ background: #d1fae5; opacity: 0.6; }}
+            .toggle-done:checked + .card .btn-v {{ background: #22c55e; color: white; border: none; font-size: 0; }}
+            .toggle-done:checked + .card .btn-v::after {{ content: "✅ FAIT"; font-size: 10px; }}
+
+            /* LOGIQUE VUE COMPACTE (SANS JS) */
+            #toggle-compact:checked ~ #liste .card {{ padding: 6px 12px; margin-bottom: 4px; }}
+            #toggle-compact:checked ~ #liste .nom {{ font-size: 12px; }}
+            #toggle-compact:checked ~ #liste .adr {{ font-size: 10px; }}
+            #toggle-compact:checked ~ #liste .btn-v {{ padding: 6px; }}
+            #toggle-compact:checked ~ .header label[for="toggle-compact"] {{ background: #1a73e8; }}
+
         </style>
     </head>
     <body>
+        <input type="checkbox" id="toggle-compact">
+        
         <div class="header">
             <strong style="color:#1a73e8;">🗞️ MA TOURNÉE</strong>
-            <button onclick="window.location.reload()" class="btn-reset">🔄 RESET</button>
+            <div class="controls">
+                <label for="toggle-compact" class="btn-top">🔍 VUE</label>
+                <a href="" class="btn-top btn-reset">🔄 RESET</a>
+            </div>
         </div>
-        <div id="liste">{cards_html}</div>
+
+        <div id="liste">
+            {cards_html}
+        </div>
     </body>
     </html>
     """
 
-st.title("🗞️ Scanner RL - Version Incassable")
-data = st.text_area("Liste des clients (NOM ; ADRESSE ; OPTION) :", height=300)
+st.title("🗞️ Configurateur RL (Version Finale)")
+data = st.text_area("Colle ta liste NOM ; ADRESSE ; OPTION", height=300)
 
-if st.button("🚀 GÉNÉRER"):
+if st.button("🚀 GÉNÉRER L'APPLI"):
     if data:
         html = generate_final_html(data.split("\n"))
-        st.download_button("📥 TÉLÉCHARGER", html, "Tournee.html", "text/html")
+        st.download_button("📥 TÉLÉCHARGER", html, "Tournee_RL.html", "text/html")
