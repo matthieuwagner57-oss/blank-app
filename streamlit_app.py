@@ -13,32 +13,28 @@ try:
     api_key = st.secrets["OPENAI_API_KEY"]
     client = OpenAI(api_key=api_key)
 except:
-    st.error("Erreur : Clé API manquante.")
+    st.error("Erreur : Clé API manquante dans les Secrets.")
     st.stop()
 
-# --- DETERMINATION DU JOUR ACTUEL ---
-jours_semaine = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-num_jour_actuel = datetime.now().weekday() # 0 = Lundi, 1 = Mardi...
-nom_jour_actuel = jours_semaine[num_jour_actuel]
+# --- JOUR ACTUEL ---
+jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+nom_jour = jours[datetime.now().weekday()]
 
-# --- PROMPT ULTRA-PUISSANT ---
+# --- PROMPT DE LECTURE COLONNE PAR COLONNE ---
 system_prompt = f"""
-Tu es un expert en lecture de bordereaux de livraison de journaux. 
-Aujourd'hui nous sommes {nom_jour_actuel}.
+Tu es un scanner de haute précision. Ta mission est d'extraire les données du tableau de livraison.
+Aujourd'hui nous sommes {nom_jour}.
 
-CONSIGNES DE LECTURE :
-1. Ignore la 1ère colonne (numéros/codes).
-2. Colonne 2 : Extrais le NOM et PRENOM (ex: MME BERNADETTE BOUR). Sois très précis sur l'orthographe.
-3. Colonne 3 : Extrais l'ADRESSE complète (Rue, Code Postal, Ville). Ne simplifie rien.
-4. Colonne des ronds/N : 
-   - La 1ère ligne de ronds correspond au Lundi.
-   - La 2ème au Mardi, etc.
-   - Regarde UNIQUEMENT la ligne du {nom_jour_actuel}.
-   - Si tu vois un 'N' sur cette ligne, la consigne est "PAS DE JOURNAL CE {nom_jour_actuel.upper()}".
+RÈGLES STRICTES :
+1. Lis le tableau LIGNE PAR LIGNE.
+2. COLONNE NOM : Prends le nom complet (ex: MME BERNADETTE BOUR).
+3. COLONNE ADRESSE : Prends l'adresse exacte (ex: 38 RUE SAINT ANTOINE 57600 OETING). Ne confonds pas avec les autres villes du tableau !
+4. COLONNE JOURS : Repère le 'N'.
+   - Ligne 1 des ronds = Lundi, Ligne 2 = Mardi...
+   - Si un 'N' est présent sur la ligne de {nom_jour}, écris 'PAS DE JOURNAL'.
    - Sinon, laisse vide.
 
-FORMAT DE SORTIE (STRICT) :
-NOM - ADRESSE - CONSIGNE
+FORMAT : NOM - ADRESSE - CONSIGNE
 """
 
 def generate_final_html(lines):
@@ -46,30 +42,33 @@ def generate_final_html(lines):
     for i, line in enumerate(lines):
         if " - " not in line: continue
         parts = line.split(" - ")
-        nom = parts[0].strip()
-        adr = parts[1].strip()
+        nom = parts[0].strip().upper()
+        adr = parts[1].strip().upper()
         ins = parts[2].strip() if len(parts) > 2 else ""
         
-        # Style alerte si PAS de journal
+        # Alerte visuelle pour le "N"
         is_stop = "PAS" in ins.upper()
-        style_card = 'style="border-left: 8px solid #ef4444; background: #fff1f2;"' if is_stop else 'style="border-left: 8px solid #1a73e8;"'
-        badge_ins = f'<div class="ins" style="background:#ef4444; color:white; padding:5px; border-radius:5px; font-weight:bold; margin-top:10px;">⚠️ {ins}</div>' if is_stop else ""
+        card_border = "#ef4444" if is_stop else "#1a73e8"
+        card_bg = "#fff1f2" if is_stop else "#ffffff"
+        badge = f'<div style="background:#ef4444; color:white; padding:4px; border-radius:4px; font-size:10px; margin-top:8px; font-weight:bold;">⚠️ {ins}</div>' if is_stop else ""
 
-        maps_url = f"https://www.google.com/maps/search/?api=1&query={adr.replace(' ', '+')}"
+        # LIEN MAPS DYNAMIQUE
+        clean_adr = adr.replace(" ", "+")
+        maps_link = f"https://www.google.com/maps/search/?api=1&query={clean_adr}"
         
         cards_html += f"""
         <div class="item">
             <input type="checkbox" id="c{i}" class="cb">
-            <label for="c{i}" class="card" {style_card}>
+            <label for="c{i}" class="card" style="border-left: 8px solid {card_border}; background: {card_bg};">
                 <div class="c-body">
                     <div class="nom-client">{nom}</div>
                     <div class="adr">{adr}</div>
-                    {badge_ins}
+                    {badge}
                     <div class="v-btn">Valider la livraison</div>
                     <div class="f-btn">✅ FAIT</div>
                 </div>
                 <div class="c-act">
-                    <a href="{maps_url}" class="m-btn" target="_blank" onclick="event.stopPropagation();">📍 Maps</a>
+                    <a href="{maps_link}" class="m-btn" target="_blank" onclick="event.stopPropagation();">📍 Maps</a>
                 </div>
             </label>
         </div>
@@ -85,17 +84,17 @@ def generate_final_html(lines):
         body {{ font-family: -apple-system, sans-serif; background: #f4f7f9; margin: 0; padding: 140px 15px 30px 15px; }}
         .header {{ position: fixed; top: 0; left: 0; width: 100%; background: #1a73e8; color: white; padding: 15px; text-align: center; z-index: 1000; font-weight: bold; font-size: 18px; }}
         .top-bar {{ position: fixed; top: 50px; left: 0; width: 100%; background: white; padding: 12px; display: flex; justify-content: center; gap: 10px; z-index: 999; border-bottom: 1px solid #ddd; }}
-        .btn-r {{ background: #fee2e2; border: 1px solid #ef4444; padding: 10px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; color: #dc2626; cursor: pointer; }}
-        .btn-c {{ background: #f3f4f6; border: 1px solid #9ca3af; padding: 10px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; color: #4b5563; cursor: pointer; }}
+        .btn-r {{ background: #fee2e2; border: 1px solid #ef4444; padding: 10px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; color: #dc2626; }}
+        .btn-c {{ background: #f3f4f6; border: 1px solid #9ca3af; padding: 10px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; color: #4b5563; }}
         #compact-toggle {{ display: none; }}
         #compact-toggle:checked ~ form .card {{ padding: 10px 15px; }}
         #compact-toggle:checked ~ form .v-btn, #compact-toggle:checked ~ form .f-btn {{ display: none !important; }}
         .list {{ display: flex; flex-direction: column; gap: 15px; max-width: 500px; margin: auto; }}
         .card {{ background: white; border-radius: 15px; padding: 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 6px rgba(0,0,0,0.05); cursor: pointer; }}
-        .nom-client {{ font-size: 18px; font-weight: 900; color: #1a73e8; text-transform: uppercase; }}
-        .adr {{ font-size: 14px; font-weight: 600; color: #4b5563; }}
-        .v-btn {{ margin-top: 15px; display: inline-block; padding: 10px 20px; border-radius: 25px; background: #1a73e8; color: white; font-size: 12px; font-weight: bold; text-transform: uppercase; }}
-        .f-btn {{ display: none; margin-top: 15px; padding: 10px 20px; border-radius: 25px; background: #22c55e; color: white; font-size: 12px; font-weight: bold; text-transform: uppercase; }}
+        .nom-client {{ font-size: 16px; font-weight: 900; color: #1a73e8; }}
+        .adr {{ font-size: 13px; font-weight: 600; color: #4b5563; }}
+        .v-btn {{ margin-top: 15px; display: inline-block; padding: 8px 15px; border-radius: 25px; background: #1a73e8; color: white; font-size: 11px; font-weight: bold; text-transform: uppercase; }}
+        .f-btn {{ display: none; margin-top: 15px; padding: 8px 15px; border-radius: 25px; background: #22c55e; color: white; font-size: 11px; font-weight: bold; text-transform: uppercase; }}
         .m-btn {{ background: white; border: 2px solid #1a73e8; color: #1a73e8; padding: 10px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 13px; }}
         .cb {{ display: none; }}
         .cb:checked + .card {{ background: #f1f5f9; border-left-color: #22c55e !important; opacity: 0.8; }}
@@ -106,7 +105,7 @@ def generate_final_html(lines):
 </head>
 <body>
     <input type="checkbox" id="compact-toggle">
-    <div class="header">🗞️ MA TOURNÉE DU {nom_jour_actuel.upper()}</div>
+    <div class="header">🗞️ TOURNÉE DU {nom_jour.upper()}</div>
     <form id="tf">
         <div class="top-bar">
             <button type="reset" class="btn-r">🔄 RESET</button>
@@ -119,36 +118,30 @@ def generate_final_html(lines):
     """
 
 # --- INTERFACE ---
-st.title("🗞️ Scanner RL Pro (Version GPT-4o)")
+st.title(f"🗞️ Scanner RL - {nom_jour}")
 
-up = st.file_uploader("Photo du bordereau :", type=["jpg", "png", "jpeg"])
+up = st.file_uploader("Prendre la photo :", type=["jpg", "png", "jpeg"])
 
 if up:
     if "raw_text" not in st.session_state:
-        if st.button("🔍 ANALYSER LE BORDEREAU"):
-            with st.spinner(f"Lecture précise pour {nom_jour_actuel}..."):
+        if st.button("🔍 ANALYSER LE TABLEAU"):
+            with st.spinner("Analyse précise..."):
                 img = Image.open(up)
                 buffered = io.BytesIO()
                 img.save(buffered, format="PNG")
                 img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
                 
-                # UTILISATION DE GPT-4o (BEAUCOUP PLUS PRECIS)
                 response = client.chat.completions.create(
-                    model="gpt-4o", # Changement ici : 'mini' était trop faible
+                    model="gpt-4o",
                     messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}"}}]}]
                 )
                 st.session_state.raw_text = response.choices[0].message.content
 
     if "raw_text" in st.session_state:
-        st.subheader("📝 Correction & Vérification")
-        st.write(f"Jour détecté : **{nom_jour_actuel}**")
-        corrected_text = st.text_area("Modifie si l'IA a fait une erreur :", value=st.session_state.raw_text, height=300)
+        st.subheader("📝 Vérification Manuelle")
+        corrected = st.text_area("Vérifie et corrige les noms ou les 'N' :", value=st.session_state.raw_text, height=300)
         
-        if st.button("🚀 GÉNÉRER L'APPLI DE TOURNÉE"):
-            lines = corrected_text.split("\n")
+        if st.button("🚀 GÉNÉRER L'APPLI FINALE"):
+            lines = corrected.split("\n")
             res_html = generate_final_html(lines)
-            st.download_button("📥 TÉLÉCHARGER LE FICHIER", res_html, "Tournee.html", "text/html")
-            
-            if st.button("🔄 Nouvelle analyse"):
-                del st.session_state.raw_text
-                st.rerun()
+            st.download_button("📥 TÉLÉCHARGER", res_html, "Tournee.html", "text/html")
