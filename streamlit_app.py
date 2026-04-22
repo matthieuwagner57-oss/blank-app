@@ -9,14 +9,12 @@ st.set_page_config(page_title="Générateur de Tournée", page_icon="🚚", layo
 st.title("🚚 Générateur d'Application de Tournée")
 st.markdown("Créez l'application mobile pour les livreurs en 1 clic !")
 
-# On va chercher la clé API cachée dans les secrets de Streamlit
+# Connexion sécurisée
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
-    # On utilise le nom universel du modèle
-    model = genai.GenerativeModel('gemini-1.5-flash')
 except:
-    st.error("Erreur : La clé API n'est pas configurée dans les paramètres (Secrets) du site.")
+    st.error("Erreur : La clé API n'est pas configurée dans les paramètres secrets.")
     st.stop()
 
 # --- LE PROMPT SECRET ---
@@ -32,6 +30,23 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
+# --- FONCTION ANTI-PANNE ---
+def ask_ai(content_data):
+    # L'IA va tester ces moteurs un par un jusqu'à ce qu'il y en ait un qui marche
+    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-latest']
+    last_error = ""
+    
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content([system_prompt, content_data])
+            return response.text, None # Succès !
+        except Exception as e:
+            last_error = str(e)
+            continue # Si ça échoue, on passe au moteur suivant
+            
+    return None, last_error # Si vraiment tout a échoué
+
 # --- LES 3 ONGLETS ---
 tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Manuel"])
 
@@ -41,11 +56,13 @@ with tab1:
     if st.button("🚀 Générer depuis la photo") and uploaded_image:
         with st.spinner("L'IA lit la photo et crée l'application..."):
             img = Image.open(uploaded_image)
-            response = model.generate_content([system_prompt, img])
-            html_result = response.text
+            html_result, error = ask_ai(img)
             
-            st.success("✅ Application générée avec succès !")
-            st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
+            if html_result:
+                st.success("✅ Application générée avec succès !")
+                st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
+            else:
+                st.error(f"❌ Les serveurs Google sont indisponibles. Détails : {error}")
 
 # --- ONGLET 2 : FICHIER ---
 with tab2:
@@ -60,22 +77,26 @@ with tab2:
             else:
                 file_text = str(uploaded_file.read(), "utf-8")
                 
-            response = model.generate_content([system_prompt, file_text])
-            html_result = response.text
+            html_result, error = ask_ai(file_text)
             
-            st.success("✅ Application générée avec succès !")
-            st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
+            if html_result:
+                st.success("✅ Application générée avec succès !")
+                st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
+            else:
+                st.error(f"❌ Les serveurs Google sont indisponibles. Détails : {error}")
 
 # --- ONGLET 3 : MANUEL ---
 with tab3:
     manual_text = st.text_area("Collez la liste des adresses ici :", height=200)
     if st.button("🚀 Générer depuis le texte") and manual_text:
         with st.spinner("L'IA analyse le texte et crée l'application..."):
-            response = model.generate_content([system_prompt, manual_text])
-            html_result = response.text
+            html_result, error = ask_ai(manual_text)
             
-            st.success("✅ Application générée avec succès !")
-            st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
+            if html_result:
+                st.success("✅ Application générée avec succès !")
+                st.download_button(label="📥 Télécharger l'App (Tournee.html)", data=html_result, file_name="Tournee.html", mime="text/html")
+            else:
+                st.error(f"❌ Les serveurs Google sont indisponibles. Détails : {error}")
 
 # --- SIGNATURE DU CRÉATEUR ---
 st.divider()
