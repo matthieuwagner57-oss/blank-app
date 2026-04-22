@@ -13,30 +13,32 @@ try:
     api_key = st.secrets["OPENAI_API_KEY"]
     client = OpenAI(api_key=api_key)
 except:
-    st.error("Erreur : Clé API manquante dans les Secrets.")
+    st.error("Clé API manquante dans les Secrets.")
     st.stop()
 
-# --- GESTION DU JOUR ---
+# --- JOUR ACTUEL ---
 jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-num_jour_actuel = datetime.now().weekday()
-nom_jour_actuel = jours[num_jour_actuel]
+num_j = datetime.now().weekday()
+nom_j = jours[num_j]
 
-# --- PROMPT UNIVERSEL ---
+# --- PROMPT DE "VISION FORCÉE" ---
 system_prompt = f"""
-Tu es un assistant logistique expert. Analyse ce bordereau de livraison.
-Aujourd'hui nous sommes {nom_jour_actuel}.
+Tu es un extracteur de texte OCR haute précision. Ton unique but est de lire le bordereau de livraison.
+Aujourd'hui nous sommes {nom_j}.
 
 INSTRUCTIONS :
-1. Extrais TOUTES les lignes de livraison visibles.
-2. Pour chaque ligne, identifie :
-   - Le NOM et PRENOM du client.
-   - L'ADRESSE complète (Rue, Code Postal, Ville).
-3. Regarde la grille des jours (ronds et N) :
-   - Si tu vois un 'N' sur la ligne correspondant au {nom_jour_actuel}, note 'PAS DE JOURNAL'.
-   - Sinon, ne note rien.
+1. Analyse chaque ligne du tableau, même si c'est écrit petit.
+2. Extrais CHAQUE client présent.
+3. Pour chaque ligne, trouve :
+   - Le NOM et PRENOM (Colonne 2).
+   - L'ADRESSE (Colonne 3 : Rue, CP, Ville).
+4. Pour le jour {nom_j} (Ligne {num_j + 1} des ronds) :
+   - Si tu vois un 'N', écris 'PAS DE JOURNAL'.
+   - Sinon, ne mets rien.
 
-SORTIE : NOM - ADRESSE - CONSIGNE
-(Un client par ligne)
+INTERDICTION : Ne fais pas de phrases. Ne dis pas que tu as oublié. 
+S'il y a une image, extrais les données.
+FORMAT DE SORTIE : NOM - ADRESSE - CONSIGNE
 """
 
 def generate_final_html(lines):
@@ -54,7 +56,7 @@ def generate_final_html(lines):
         color = "#ef4444" if is_stop else "#1a73e8"
         bg = "#fff1f2" if is_stop else "#ffffff"
         
-        # Lien Maps Universel (Search API)
+        # Maps Link
         clean_adr = adr.replace(" ", "+")
         maps_url = f"https://www.google.com/maps/search/?api=1&query={clean_adr}"
         
@@ -75,27 +77,22 @@ def generate_final_html(lines):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body {{ font-family: -apple-system, sans-serif; background: #f4f7f9; padding: 10px; margin: 0; }}
-            h2 {{ color: #1a73e8; text-align: center; font-size: 20px; text-transform: uppercase; }}
-        </style>
+        <style>body {{ font-family: sans-serif; background: #f4f7f9; padding: 10px; }} h2 {{ color: #1a73e8; text-align: center; }}</style>
     </head>
     <body>
-        <h2>🗞️ Tournée du {nom_jour_actuel.upper()}</h2>
+        <h2>🗞️ Tournée du {nom_j.upper()}</h2>
         {cards_html}
     </body>
     </html>
     """
 
-# --- INTERFACE ---
 st.title("🗞️ Scanner RL Universel")
-st.write(f"Analyse pour le : **{nom_jour_actuel}**")
 
-file = st.file_uploader("Photo ou Scan PDF du bordereau :", type=["pdf", "jpg", "png", "jpeg"])
+file = st.file_uploader("Scan PDF ou Photo :", type=["pdf", "jpg", "png", "jpeg"])
 
 if file:
-    if st.button("🔍 ANALYSER LE BORDEREAU"):
-        with st.spinner("Analyse en cours..."):
+    if st.button("🚀 ANALYSER LE BORDEREAU"):
+        with st.spinner("L'IA analyse le document..."):
             try:
                 if file.type == "application/pdf":
                     with pdfplumber.open(file) as pdf:
@@ -105,24 +102,22 @@ if file:
                         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": raw_content}]
                     )
                 else:
+                    # Traitement Image
                     img = Image.open(file)
                     buffered = io.BytesIO()
                     img.save(buffered, format="PNG")
                     img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
                     response = client.chat.completions.create(
                         model="gpt-4o",
-                        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}"}}]}]
+                        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}", "detail": "high"}}]}]
                     )
                 
                 st.session_state.res = response.choices[0].message.content
             except Exception as e:
-                st.error(f"Erreur lors de l'analyse : {e}")
+                st.error(f"Erreur : {e}")
 
     if "res" in st.session_state:
-        st.subheader("📝 Correction & Vérification")
-        txt = st.text_area("Vérifie les données lues :", value=st.session_state.res, height=350)
-        
-        if st.button("⚙️ GÉNÉRER L'APPLI DE TOURNÉE"):
+        txt = st.text_area("Données extraites :", value=st.session_state.res, height=350)
+        if st.button("⚙️ GÉNÉRER L'APPLI"):
             html = generate_final_html(txt.split("\n"))
-            st.download_button("📥 TÉLÉCHARGER LE FICHIER", html, "Tournee.html", "text/html")
-            st.success("Fichier prêt ! Ouvre-le sur ton téléphone.")
+            st.download_button("📥 TÉLÉCHARGER", html, "Tournee.html", "text/html")
