@@ -9,12 +9,14 @@ st.set_page_config(page_title="Générateur de Tournée", page_icon="🚚", layo
 st.title("🚚 Générateur d'Application de Tournée")
 st.markdown("Créez l'application mobile pour les livreurs en 1 clic !")
 
-# On demande la clé API (ton boss pourra la mémoriser dans le code plus tard pour que les livreurs ne la voient pas)
-api_key = st.text_input("Clé API Gemini (Obligatoire) :", type="password")
-
-if api_key:
+# On va chercher la clé API cachée dans les secrets de Streamlit
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash')
+except:
+    st.error("Erreur : La clé API n'est pas configurée dans les paramètres (Secrets) du site.")
+    st.stop()
 
 # --- LE PROMPT SECRET ---
 system_prompt = """
