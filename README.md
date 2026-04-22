@@ -78,4 +78,4 @@ with tab3:
 
 # --- SIGNATURE DU CRÉATEUR ---
 st.divider()
-st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>✨ Créé sur mesure par <b>Matthieu</b> pour l'équipe de livraison 🗞️</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>✨ Créé sur mesure par <b>Matthieu WAGNER</b> pour l'équipe de livraison 🗞️</p>", unsafe_allow_html=True)
