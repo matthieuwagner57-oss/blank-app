@@ -2,7 +2,6 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import PyPDF2
-import time
 
 st.set_page_config(page_title="Générateur de Tournée", page_icon="🚚", layout="centered")
 
@@ -14,6 +13,8 @@ st.markdown("Créez l'application mobile pour les livreurs en 1 clic !")
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
+    # ON FORCE LE MOTEUR QUI MARCHE CHEZ TOI :
+    model = genai.GenerativeModel('gemini-2.5-flash')
 except:
     st.error("Erreur : La clé API n'est pas configurée dans les paramètres secrets.")
     st.stop()
@@ -31,48 +32,16 @@ REGLES OBLIGATOIRES :
 7. Ne renvoie QUE le code HTML complet, rien d'autre, sans les balises ```html au début ou à la fin.
 """
 
-# --- FONCTION DE GÉNÉRATION ---
+# --- FONCTION SÉCURISÉE ---
 def ask_ai(content_data):
     try:
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        # On force l'utilisation de 1.5-flash qui a un plafond gratuit énorme (1500/jour)
-        chosen_model = None
-        for m in available_models:
-            if m == 'models/gemini-1.5-flash':
-                chosen_model = m
-                break
-                
-        # Si on ne le trouve pas exactement, on cherche au moins un "1.5-flash"
-        if not chosen_model:
-            for m in available_models:
-                if '1.5-flash' in m:
-                    chosen_model = m
-                    break
-            
-        if not chosen_model:
-            return None, "Aucun moteur IA valide n'a été trouvé pour votre clé."
-
-        model = genai.GenerativeModel(chosen_model)
-        
-        last_error = ""
-        for tentative in range(3):
-            try:
-                response = model.generate_content([system_prompt, content_data])
-                return response.text, None
-            except Exception as e:
-                last_error = str(e)
-                if "429" in last_error or "Quota" in last_error:
-                    time.sleep(5) # Attente plus courte
-                    continue
-                else:
-                    return None, last_error
-                    
-        # Si ça échoue 3 fois de suite, on affiche la VRAIE erreur de Google
-        return None, f"Google bloque l'accès. Raison exacte : {last_error}"
-        
+        response = model.generate_content([system_prompt, content_data])
+        return response.text, None
     except Exception as e:
-        return None, str(e)
+        erreur = str(e)
+        if "429" in erreur or "Quota" in erreur:
+            return None, "Vitesse limite atteinte (5 par minute maximum). Attendez 1 minute chrono et cliquez à nouveau !"
+        return None, erreur
 
 # --- LES 3 ONGLETS ---
 tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Manuel"])
@@ -81,7 +50,7 @@ tab1, tab2, tab3 = st.tabs(["📸 Photo", "📄 Fichier (PDF/Texte)", "✍️ Ma
 with tab1:
     uploaded_image = st.file_uploader("Prenez en photo la feuille de tournée :", type=["jpg", "jpeg", "png"])
     if st.button("🚀 Générer depuis la photo") and uploaded_image:
-        with st.spinner("L'IA lit la photo et crée l'application..."):
+        with st.spinner("L'IA lit la photo..."):
             img = Image.open(uploaded_image)
             html_result, error = ask_ai(img)
             
@@ -95,7 +64,7 @@ with tab1:
 with tab2:
     uploaded_file = st.file_uploader("Uploadez un PDF ou fichier texte :", type=["pdf", "txt"])
     if st.button("🚀 Générer depuis le fichier") and uploaded_file:
-        with st.spinner("L'IA lit le fichier et crée l'application..."):
+        with st.spinner("L'IA lit le fichier..."):
             file_text = ""
             if uploaded_file.name.endswith(".pdf"):
                 reader = PyPDF2.PdfReader(uploaded_file)
@@ -116,7 +85,7 @@ with tab2:
 with tab3:
     manual_text = st.text_area("Collez la liste des adresses ici :", height=200)
     if st.button("🚀 Générer depuis le texte") and manual_text:
-        with st.spinner("L'IA analyse le texte et crée l'application..."):
+        with st.spinner("L'IA analyse le texte..."):
             html_result, error = ask_ai(manual_text)
             
             if html_result:
