@@ -12,11 +12,8 @@ def generate_final_html(lines):
         adr = parts[1].strip().upper()
         consigne = parts[2].strip().upper() if len(parts) > 2 else ""
         
-        # Détection si "PAS" est présent dans la consigne
         is_stop = "PAS" in consigne
         color = "red" if is_stop else "#1a73e8"
-        
-        # On affiche la consigne exacte si elle contient "PAS"
         badge = f'<div style="color:red; font-weight:bold; font-size:11px; margin-top:4px;">⚠️ {consigne}</div>' if is_stop else ""
         
         clean_adr = adr.replace(" ", "+")
@@ -70,7 +67,7 @@ def generate_final_html(lines):
             #toggle-compact:checked ~ #liste .nom {{ font-size: 12px; }}
             #toggle-compact:checked ~ .header label[for="toggle-compact"] {{ background: #1a73e8; }}
 
-            .footer {{ text-align: center; padding: 20px 10px; color: #9ca3af; font-size: 12px; font-style: italic; }}
+            .footer {{ text-align: center; padding: 20px 10px; color: #9ca3af; font-size: 11px; font-weight: bold; }}
         </style>
     </head>
     <body>
@@ -83,7 +80,7 @@ def generate_final_html(lines):
             </div>
         </div>
         <div id="liste">{cards_html}</div>
-        <div class="footer">Créé par Matthieu Wagner</div>
+        <div class="footer">Application créée par Matthieu WAGNER</div>
     </body>
     </html>
     """
@@ -92,9 +89,7 @@ st.title("🗞️ Scanner RL - Version Pro")
 
 # --- SECTION ASSISTANT IA ---
 with st.expander("✨ ASSISTANT IA (Aide à l'extraction)", expanded=True):
-    st.markdown("""
-    **Étape 1 :** Ouvrez l'une des IA ci-dessous.
-    """)
+    st.markdown("**Étape 1 :** Ouvrez l'une des IA ci-dessous.")
     c1, c2 = st.columns(2)
     with c1:
         st.link_button("🤖 Claude.ai", "https://claude.ai", use_container_width=True)
@@ -107,7 +102,7 @@ Extrait chaque client sous ce format précis :
 NOM ; ADRESSE ; INFO
 
 IMPORTANT : 
-- Dans 'INFO', note précisément les jours où il n'y a pas de journal (ex: PAS DE JOURNAL LUNDI ET MARDI). 
+- Dans 'INFO', note précisément les jours où il n'y a pas de journal (ex: PAS DE JOURNAL LUNDI). 
 - Si la personne reçoit son journal normalement, laisse 'INFO' vide.
 - Ne rajoute aucun autre texte, juste la liste avec des points-virgules."""
     st.code(prompt_ia, language="text")
@@ -127,11 +122,4 @@ if st.button("🚀 GÉNÉRER L'APPLI DE TOURNÉE", use_container_width=True):
         st.error("Veuillez coller des données avant de générer.")
 
 st.divider()
-
-# SECTION OPTIONNELLE (DESACTVÉE)
-st.caption("🛠️ Options Photos Directes (En maintenance)")
-col1, col2 = st.columns(2)
-with col1:
-    st.button("🖼️ Scanner Photo", disabled=True)
-with col2:
-    st.button("📄 Importer PDF", disabled=True)
+st.info("💡 **Application créée par Matthieu WAGNER**")
