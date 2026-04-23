@@ -1,149 +1,122 @@
 import streamlit as st
-import pdfplumber
-from PIL import Image
-import openai
 import re
-import os
 
-# Configuration de la page
-st.set_page_config(page_title="Scanner RL - Matthieu Wagner", page_icon="🗞️", layout="centered")
+# Configuration Matthieu Wagner
+st.set_page_config(page_title="Système RL - Matthieu Wagner", page_icon="🗞️", layout="centered")
 
-# --- RÉCUPÉRATION DE LA CLÉ API (Sécurisée) ---
-# En production, configure 'api_key' dans les Secrets de Streamlit
-# Pour tester en local, tu peux utiliser os.environ.get("OPENAI_API_KEY")
-api_key = st.secrets["openai"]["api_key"] if "openai" in st.secrets else os.environ.get("OPENAI_API_KEY")
+# --- DESIGN DES ONGLETS ---
+st.markdown("""
+    <style>
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #f0f2f5;
+        border-radius: 10px 10px 0px 0px;
+        padding: 10px 20px;
+        font-weight: bold;
+    }
+    .stTabs [aria-selected="true"] { 
+        background-color: #1a73e8 !important; 
+        color: white !important; 
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-if api_key:
-    openai.api_key = api_key
-else:
-    st.error("🔑 Clé API OpenAI manquante. L'analyse automatique est désactivée. Utilisez le mode MANUEL.")
-
-# --- PROMPT DE VISION INTELLIGENT ---
-PROMPT_VISION = """
-Analyse ce bordereau de livraison du Républicain Lorrain.
-Extrait CHAQUE client sous ce format exact :
-NOM ; ADRESSE ; INFO_LIVRAISON
-
-Règles impératives :
-1. Identifie horizontalement le NOM et l'ADRESSE.
-2. Regarde les colonnes des jours. Si tu vois un 'N' (Non) pour aujourd'hui, INFO_LIVRAISON = PAS DE LIVRAISON AUJOURD'HUI.
-3. Si plusieurs 'N' sont visibles sur la semaine, INFO_LIVRAISON = PAS DE LIVRAISON LE [JOURS].
-4. Ignore les codes abonnés, les dates et les totaux.
-Ne réponds que la liste nettoyée, une ligne par client.
-"""
-
-# --- FONCTION D'ANALYSE PAR VISION (Photo/PDF) ---
-def analyser_avec_vision(image_file):
-    if not api_key: return "Erreur : Clé API manquante."
-    
-    with st.spinner("🧠 L'IA analyse le bordereau..."):
-        try:
-            # Conversion de l'image pour l'API
-            img = Image.open(image_file)
-            # (Ici, code de conversion base64 pour l'envoi à l'API GPT-4o Vision)
-            
-            # --- SIMULATION DE L'ANALYSE (En attendant ta clé API) ---
-            # En production, remplace ceci par l'appel API réel.
-            return """MME BOUR BERNADETTE ; 38 RUE SAINT ANTOINE 57600 OETING ; PAS DE LIVRAISON LE LUNDI
-M GREFF ROLAND ; 55 RUE SAINT ANTOINE 57600 OETING ; 
-MME ROSAR ARLETTE ; 79 RUE SAINT ANTOINE 57600 OETING ; PAS DE LIVRAISON (N)"""
-            
-            # (Code réel de l'appel API OpenAI Vision ici)
-            # response = openai.ChatCompletion.create(...)
-            # return response.choices[0].message.content
-            
-        except Exception as e:
-            return f"Erreur lors de l'analyse : {e}"
-
-# --- GÉNÉRATEUR HTML FINAL ---
-def generate_html_app(data_input, compact):
+# --- GÉNÉRATEUR DU FICHIER HTML (DESIGN RITTER) ---
+def generate_html_ritter(data, compact_default):
     cards_html = ""
-    # Réglages vue compacte
-    padding = "8px 12px" if compact else "15px"
-    font_nom = "14px" if compact else "16px"
+    lines = data.strip().split('\n')
     
-    for i, line in enumerate(data_input.strip().split('\n')):
+    for i, line in enumerate(lines):
         if ";" not in line: continue
-        
         parts = line.split(";")
         nom = parts[0].strip().upper()
-        adr = parts[1].strip().upper() if len(parts) > 1 else ""
-        info = parts[2].strip().upper() if len(parts) > 2 else ""
+        adr = parts[1].strip().upper()
+        ville = parts[2].strip().upper() if len(parts) > 2 else "57600 OETING"
+        info = parts[3].strip().upper() if len(parts) > 3 else ""
 
-        # Détection des alertes (Règle du 'N', PAS, STOP)
-        is_stop = any(x in f"{nom} {adr} {info}" for x in ["PAS", " N ", "STOP", "REPOS", "LUNDI"])
-        color = "#ef4444" if is_stop else "#1a73e8"
-        
+        # Détection d'alerte (Règle du 'N' ou 'PAS')
+        is_alert = any(x in f"{nom} {info}" for x in ["PAS", " N ", "STOP", "VACANCES"])
+        border_color = "#dc3545" if is_alert else "#007bff"
+        alert_badge = f'<span style="color: #dc3545; font-weight: bold; background: #ffeeba; padding: 3px 6px; border-radius: 4px; border: 1px solid #ffdf7e; font-size: 14px; display: block; margin-top: 5px;">⚠️ {info}</span>' if info else ""
+
         cards_html += f"""
-        <div class="item" style="opacity:{'0.7' if is_stop else '1'};">
-            <input type="checkbox" id="check{i}" class="toggle-done" style="display:none;">
-            <label for="check{i}" class="card" style="border-left:8px solid {color}; padding:{padding}; background:white; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; box-shadow:0 2px 4px rgba(0,0,0,0.1); cursor:pointer;">
-                <div class="info">
-                    <div style="color:#1a73e8; font-weight:bold; font-size:{font_nom};">{nom}</div>
-                    <div style="font-size:12px; color:#444;">{adr}</div>
-                    {f'<div style="color:#ef4444; font-weight:bold; font-size:11px; margin-top:4px;">⚠️ {info}</div>' if is_stop else ""}
+        <div class="card-container">
+            <input type="checkbox" id="check_{i}" class="hidden-checkbox">
+            <label class="card" for="check_{i}" style="border-left: 5px solid {border_color}">
+                <div class="info-section">
+                    <div style="margin-bottom: 8px;"><span class="num-badge">CLIENT : {i+1}</span></div>
+                    <span class="client-name">{nom}</span>
+                    <a class="maps-link" href="https://www.google.com/maps/search/?api=1&query={adr.replace(' ','+')}+{ville.replace(' ','+')}" target="_blank">📍 {adr}</a>
+                    <span style="font-size: 14px; color: #555; display: block;">{ville}</span>
+                    {alert_badge}
                 </div>
-                <a href="https://www.google.com/maps/search/?api=1&query={adr.replace(' ','+')}" target="_blank" style="text-decoration:none; background:#f0f7ff; padding:10px; border-radius:8px; border:1px solid #1a73e8;" onclick="event.stopPropagation();">📍</a>
+                <div class="action-section"><div class="btn-check"></div></div>
             </label>
         </div>"""
 
     return f"""
-    <html>
-    <head>
-        <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body {{ font-family: sans-serif; background: #f0f2f5; padding: 10px; margin:0; }}
-            .toggle-done:checked + .card {{ background: #d1fae5; opacity: 0.5; }}
-        </style>
-    </head>
-    <body>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <b style="color:#1a73e8; font-size:20px;">🗞️ MA TOURNÉE</b>
-            <button onclick="window.location.reload()" style="background:#ef4444; color:white; border:none; padding:10px; border-radius:8px; font-weight:bold;">🔄 TOUT DÉCOCHER</button>
-        </div>
-        {cards_html}
-    </body>
-    </html>"""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <style>
+        body {{ font-family: -apple-system, sans-serif; background: #f4f4f9; padding: 10px; margin: 0; }}
+        .reset-btn {{ display: block; width: 100%; padding: 12px; background: #dc3545; color: white; border: none; border-radius: 10px; margin-bottom: 10px; font-weight: bold; cursor: pointer; }}
+        .compact-label {{ display: block; width: 100%; padding: 12px; background: #6c757d; color: white; border-radius: 10px; margin-bottom: 15px; font-weight: bold; text-align: center; cursor: pointer; }}
+        .hidden-checkbox {{ display: none; }}
+        .card {{ background: white; border-radius: 10px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; cursor: pointer; }}
+        .num-badge {{ background: #333; color: white; padding: 5px 10px; border-radius: 6px; font-size: 14px; font-weight: bold; }}
+        .client-name {{ font-size: 18px; font-weight: 800; color: #111; display: block; }}
+        .maps-link {{ color: #0056b3; text-decoration: none; font-weight: bold; font-size: 17px; display: inline-block; padding: 8px 0; }}
+        .btn-check {{ padding: 15px; background: #007bff; color: white; border-radius: 8px; width: 85px; text-align: center; font-weight: bold; }}
+        .btn-check::after {{ content: "Valider"; }}
+        .hidden-checkbox:checked + .card {{ border-left-color: #28a745; background: #eafaf1; opacity: 0.6; }}
+        .hidden-checkbox:checked + .card .btn-check {{ background: #28a745; }}
+        .hidden-checkbox:checked + .card .btn-check::after {{ content: "✓ Fait"; }}
+        
+        /* MODE COMPACT */
+        #compact_mode:checked ~ .card-container .card {{ padding: 6px 10px; margin-bottom: 6px; }}
+        #compact_mode:checked ~ .card-container .client-name {{ font-size: 14px; }}
+        #compact_mode:checked ~ .card-container .btn-check {{ padding: 8px 5px; width: 60px; font-size: 13px; }}
+    </style>
+</head>
+<body>
+    <form>
+        <input type="reset" value="🔄 TOUT DÉCOCHER" class="reset-btn">
+        <input type="checkbox" id="compact_mode" class="hidden-checkbox" {"checked" if compact_default else ""}>
+        <label for="compact_mode" class="compact-label">🔍 Vue Compacte</label>
+        <div class="card-container">{cards_html}</div>
+    </form>
+</body>
+</html>"""
 
-# --- INTERFACE ---
-st.title("🗞️ Scanner RL - Expert")
-st.caption("Développeur : Matthieu Wagner")
+# --- INTERFACE STREAMLIT ---
+st.title("🗞️ Scanner RL Pro")
+st.caption("Version Design Ritter - Matthieu Wagner")
 
-tab1, tab2, tab3 = st.tabs(["🚀 ANALYSE AUTO (Photo/PDF)", "✍️ MODE MANUEL", "⚙️ CONFIG"])
-
-with tab3:
-    st.write("### ⚙️ Configuration")
-    if not api_key:
-        st.warning("🔑 Pour activer l'analyse automatique, ajoutez votre clé API OpenAI.")
-        new_key = st.text_input("Clé API OpenAI :", type="password")
-        if st.button("Enregistrer la clé"):
-            # (Ici, logique pour stocker la clé temporairement ou dans les secrets)
-            st.success("Clé API enregistrée ! Rechargez la page.")
+tab1, tab2, tab3, tab4 = st.tabs(["🪄 IA", "📸 PHOTO", "📄 PDF", "🚀 GÉNÉRATEUR"])
 
 with tab1:
-    st.write("### 🚀 Importation du Bordereau")
-    source = st.radio("Source :", ["📸 Photo", "📄 PDF"])
-    file = st.file_uploader(f"Envoyer {source}", type=["jpg", "png", "pdf"] if "PDF" in source else ["jpg", "png"])
-    
-    if file and api_key:
-        if st.button("🔍 ANALYSER ET GÉNÉRER", use_container_width=True):
-            extracted_text = analyser_avec_vision(file)
-            if ";" in extracted_text:
-                st.success("Analyse réussie !")
-                # Génération directe de l'appli
-                final_app = generate_html_app(extracted_text, compact=False)
-                st.download_button("📥 TÉLÉCHARGER MA TOURNÉE", final_app, "TourneeRL.html", "text/html", use_container_width=True)
-            else:
-                st.error("L'IA n'a pas réussi à extraire la liste. Utilisez le mode MANUEL.")
+    st.write("### 🧠 Préparation par IA")
+    st.code("Analyse ce bordereau. Format : NOM ; ADRESSE ; VILLE ; INFO. Si tu vois un 'N', écris 'PAS DE JOURNAL'.")
+    st.link_button("Ouvrir Claude", "https://claude.ai")
 
 with tab2:
-    st.write("### ✍️ Mode Manuel (Sécurité)")
-    st.info("Collez ici la liste si l'analyse automatique échoue. Format : NOM ; ADRESSE ; INFO")
-    compact_manual = st.toggle("Vue Compacte", value=False)
-    manual_data = st.text_area("Données de la tournée", height=300)
+    st.write("### 📸 Scan Photo")
+    st.file_uploader("Importer une photo", type=["jpg", "png"])
+    st.info("Utilisez le texte en direct de votre téléphone pour copier les adresses.")
+
+with tab3:
+    st.write("### 📄 Analyse PDF")
+    st.file_uploader("Fichier PDF", type="pdf")
+
+with tab4:
+    st.write("### 🚀 Création de l'Appli")
+    compact = st.toggle("Activer la Vue Compacte par défaut")
+    data_input = st.text_area("Liste (NOM ; ADRESSE ; VILLE ; INFO)", height=300, 
+                             value="MME ESTELLE BANNWART ; 16 RUE NATIONALE ; FORBACH\nM RAPHAEL AMOROSO ; 9 RUE DES VERGERS ; STIRING WENDE ; APPARTEMENT N")
     
-    if st.button("📱 GÉNÉRER MA TOURNÉE (MANUEL)", use_container_width=True):
-        if manual_data:
-            manual_app = generate_html_app(manual_data, compact_manual)
-            st.success("✅ Application générée !")
-            st.download_button("📥 TÉLÉCHARGER LE FICHIER", manual_app, "TourneeRL.html", "text/html")
+    if st.button("📱 GÉNÉRER MA TOURNÉE", use_container_width=True):
+        if data_input:
+            final_html = generate_html_ritter(data_input, compact)
+            st.download_button("📥 TÉLÉCHARGER LE FICHIER", final_html, "MaTournee.html", "text/html")
