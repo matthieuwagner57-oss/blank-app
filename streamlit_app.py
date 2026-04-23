@@ -1,79 +1,126 @@
 import streamlit as st
 import re
 
-st.set_page_config(page_title="Système RL - Matthieu Wagner", page_icon="🗞️")
+# Configuration de la page pour un look pro
+st.set_page_config(page_title="Système RL - Matthieu Wagner", page_icon="🗞️", layout="centered")
 
-# --- FONCTION DE NETTOYAGE (LE CERVEAU) ---
-def extraire_proprement(texte_vrac):
-    lines = texte_vrac.split('\n')
-    resultats = []
-    # Mots-clés pour repérer une adresse
-    keywords = ["RUE", "AVENUE", "IMP", "IMPASSE", "SQ", "SQUARE", "PL ", "PLACE", "BD ", "ROUTE"]
-    
-    for line in lines:
-        line = line.strip().upper()
-        if any(k in line for k in keywords):
-            # 1. Nettoyage des numéros de client en début de ligne (ex: 0259401)
-            line = re.sub(r'^\d{4,}\s+', '', line)
-            
-            # 2. Séparation Nom / Adresse
-            found = False
-            for k in keywords:
-                if k in line:
-                    parts = line.split(k, 1)
-                    nom = parts[0].strip(", ").strip()
-                    adr = k + parts[1].strip()
-                    if not nom: nom = "CLIENT"
-                    resultats.append(f"{nom} ; {adr}")
-                    found = True
-                    break
-    return "\n".join(resultats)
+# --- STYLE CSS POUR LES ONGLETS ---
+st.markdown("""
+    <style>
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #f0f2f5;
+        border-radius: 10px 10px 0px 0px;
+        padding: 10px 20px;
+        font-weight: bold;
+    }
+    .stTabs [aria-selected="true"] { 
+        background-color: #1a73e8 !important; 
+        color: white !important; 
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- MENU NAVIGATION ---
-rubrique = st.sidebar.radio("Navigation", ["📂 Extracteur d'adresses", "🚀 Générateur d'Appli"])
-
-# --- RUBRIQUE 1 : EXTRACTEUR ---
-if rubrique == "📂 Extracteur d'adresses":
-    st.title("📂 Extracteur Magique")
-    st.write("### Transformez une capture d'écran en liste propre")
-    st.info("Collez ici le texte brut issu de votre screenshot. L'outil va extraire uniquement les noms et adresses.")
+def generate_final_app(data_input):
+    """Génère le fichier HTML mobile avec suivi de livraison"""
+    cards_html = ""
+    lines = data_input.strip().split('\n')
     
-    texte_brut = st.text_area("📋 Collez le vrac ici :", height=300, placeholder="Ex: 0259401 BOUR BERNADETTE 38 RUE SAINT ANTOINE...")
-    
-    if st.button("🪄 NETTOYER LA LISTE"):
-        if texte_brut:
-            liste_propre = extraire_proprement(texte_brut)
-            st.success("✅ Extraction réussie ! Copiez la liste ci-dessous :")
-            st.code(liste_propre, language="text")
-            st.caption("💡 Copiez ce texte et allez dans l'onglet 'Générateur d'Appli'")
-
-# --- RUBRIQUE 2 : GÉNÉRATEUR ---
-else:
-    st.title("🚀 Générateur d'Appli Mobile")
-    st.write("### Créez votre fichier de tournée")
-    
-    liste_input = st.text_area("📋 Collez la liste propre (NOM ; ADRESSE) :", height=300)
-    
-    if st.button("📱 CRÉER MON APPLI"):
-        if ";" in liste_input:
-            # Code HTML de l'appli (on garde ton design avec les cases à cocher)
-            cards_html = ""
-            for i, line in enumerate(liste_input.split('\n')):
-                if ";" in line:
-                    n, a = line.split(";", 1)
-                    is_stop = any(x in n.upper() for x in ["BOUR", "REB"])
-                    color = "red" if is_stop else "#1a73e8"
-                    cards_html += f"""
-                    <div style="background:white; margin-bottom:8px; padding:12px; border-radius:10px; border-left:8px solid {color}; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 2px rgba(0,0,0,0.1);">
-                        <div><b>{n}</b><br><small>{a}</small></div>
-                        <a href="https://www.google.com/maps/search/?api=1&query={a.replace(' ','+')}" target="_blank" style="text-decoration:none; font-size:20px;">📍</a>
-                    </div>"""
-            
-            full_html = f"<html><body style='font-family:sans-serif; background:#f0f2f5; padding:10px;'>{cards_html}<p style='text-align:center; font-size:10px;'>Créé par Matthieu Wagner</p></body></html>"
-            st.download_button("📥 TÉLÉCHARGER", full_html, "MaTournee.html")
+    for i, line in enumerate(lines):
+        if not line.strip(): continue
+        
+        # LOGIQUE D'EXTRACTION AUTOMATIQUE
+        # Si l'utilisateur met un ";", on l'utilise. Sinon, on cherche l'adresse.
+        if ";" in line:
+            parts = line.split(";")
+            nom = parts[0].strip().upper()
+            adr = parts[1].strip().upper()
         else:
-            st.error("Format invalide. Utilisez l'Extracteur d'abord !")
+            # On cherche les mots-clés de rue pour séparer le nom de l'adresse
+            match = re.search(r"( RUE| AV| IMP| PL| SQ| BD| ROUTE| CHEMIN)", line, re.IGNORECASE)
+            if match:
+                nom = line[:match.start()].strip().upper()
+                adr = line[match.start():].strip().upper()
+            else:
+                nom = "CLIENT"
+                adr = line.strip().upper()
 
-st.sidebar.markdown("---")
-st.sidebar.write("🛠️ **Développeur :**")
-st.sidebar.write("Matthieu Wagner")
+        # Détection des arrêts (Marquage en rouge)
+        is_stop = any(x in nom for x in ["BOUR", "REB", "ARRÊT", "PAS"])
+        color = "#ef4444" if is_stop else "#1a73e8"
+        badge = '<div style="color:#ef4444; font-weight:bold; font-size:11px; margin-top:4px;">⚠️ PAS DE JOURNAL</div>' if is_stop else ""
+        
+        # Lien Google Maps
+        maps_url = f"https://www.google.com/maps/search/?api=1&query={adr.replace(' ','+')}"
+        
+        cards_html += f"""
+        <div class="card" style="background:white; margin-bottom:12px; padding:15px; border-radius:15px; border-left:10px solid {color}; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+            <div style="flex:1;">
+                <div style="color:#1a73e8; font-weight:bold; font-size:16px; letter-spacing:0.5px;">{nom}</div>
+                <div style="font-size:13px; color:#444; margin-top:4px; font-weight:500;">{adr}</div>
+                {badge}
+            </div>
+            <a href="{maps_url}" target="_blank" style="text-decoration:none; background:#f0f7ff; padding:12px; border-radius:12px; border:1.5px solid #1a73e8; font-size:20px;">📍</a>
+        </div>"""
+    
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+            body {{ font-family: -apple-system, sans-serif; background: #f8f9fa; padding: 15px; margin: 0; }}
+            .header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }}
+            .footer {{ text-align:center; color:#999; font-size:12px; margin-top:30px; font-weight:bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <b style="color:#1a73e8; font-size:22px;">🗞️ MA TOURNÉE</b>
+            <button onclick="window.location.reload()" style="background:#ef4444; color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:bold;">🔄 RESET</button>
+        </div>
+        {cards_html}
+        <div class="footer">DÉVELOPPÉ PAR MATTHIEU WAGNER</div>
+    </body>
+    </html>
+    """
+
+# --- INTERFACE PRINCIPALE ---
+st.title("🗞️ Scanner de Tournée RL")
+st.markdown("### 👨‍💻 Créé par Matthieu Wagner")
+
+# Les onglets demandés
+tab1, tab2, tab3 = st.tabs(["✍️ MODE MANUEL", "📸 PHOTO IA", "📄 PDF IA"])
+
+with tab1:
+    st.write("### 📝 Saisie ou Collage")
+    st.info("Collez votre liste ici. Format conseillé : **NOM ; ADRESSE**")
+    
+    # Liste d'exemple (Oeting)
+    demo_list = "BERNADETTE BOUR ; 38 RUE SAINT ANTOINE\nROLAND GREFF ; 55 RUE SAINT ANTOINE\nARLETTE ROSAR ; 79 RUE SAINT ANTOINE"
+    
+    user_input = st.text_area("Données de la tournée :", value=demo_list, height=350)
+    
+    if st.button("🚀 GÉNÉRER L'APPLICATION", use_container_width=True):
+        if user_input:
+            app_html = generate_final_app(user_input)
+            st.success("✅ Application créée avec succès !")
+            st.download_button("📥 TÉLÉCHARGER POUR MOBILE", app_html, "MaTournee.html", "text/html")
+
+with tab2:
+    st.write("### 📸 Extraction via Photo")
+    st.write("Prenez une photo nette du bordereau de livraison.")
+    img = st.file_uploader("Capturez ou importez une image", type=["jpg", "png", "jpeg"])
+    if img:
+        st.warning("⚠️ L'analyse visuelle directe nécessite une clé API. Utilisez le copier-coller du texte pour l'instant.")
+
+with tab3:
+    st.write("### 📄 Extraction via PDF")
+    st.write("Importez le fichier PDF officiel du Républicain Lorrain.")
+    pdf = st.file_uploader("Choisir le fichier PDF", type="pdf")
+    if pdf:
+        st.warning("⚠️ L'analyse directe du PDF est en cours de développement. Copiez le texte du PDF dans le mode manuel.")
+
+st.markdown("---")
+st.caption("Système optimisé pour smartphone - Version 2.0")
