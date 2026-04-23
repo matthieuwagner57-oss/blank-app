@@ -80,7 +80,7 @@ def generate_final_html(lines):
             </div>
         </div>
         <div id="liste">{cards_html}</div>
-        <div class="footer">Application créée par Matthieu WAGNER</div>
+        <div class="footer">🚀 Application créée par Matthieu WAGNER</div>
     </body>
     </html>
     """
@@ -122,4 +122,4 @@ if st.button("🚀 GÉNÉRER L'APPLI DE TOURNÉE", use_container_width=True):
         st.error("Veuillez coller des données avant de générer.")
 
 st.divider()
-st.info("💡 **Application créée par Matthieu WAGNER**")
+st.info("🚀 **Application créée par Matthieu WAGNER**")
