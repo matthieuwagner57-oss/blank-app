@@ -12,9 +12,12 @@ def generate_final_html(lines):
         adr = parts[1].strip().upper()
         consigne = parts[2].strip().upper() if len(parts) > 2 else ""
         
+        # Détection si "PAS" est présent dans la consigne
         is_stop = "PAS" in consigne
         color = "red" if is_stop else "#1a73e8"
-        badge = f'<div style="color:red; font-weight:bold; font-size:11px; margin-top:4px;">⚠️ PAS DE JOURNAL LE LUNDI</div>' if is_stop else ""
+        
+        # On affiche la consigne exacte si elle contient "PAS"
+        badge = f'<div style="color:red; font-weight:bold; font-size:11px; margin-top:4px;">⚠️ {consigne}</div>' if is_stop else ""
         
         clean_adr = adr.replace(" ", "+")
         maps_url = f"https://www.google.com/maps/search/?api=1&query={clean_adr}"
@@ -87,23 +90,48 @@ def generate_final_html(lines):
 
 st.title("🗞️ Scanner RL - Version Pro")
 
-# SECTION 1 : LES OPTIONS "FUTURISTES"
-st.subheader("📸 Options Intelligentes")
-col1, col2 = st.columns(2)
-with col1:
-    st.button("🖼️ Scanner une Photo", disabled=True, help="Prochainement : Analyse IA")
-with col2:
-    st.button("📄 Importer un PDF", disabled=True, help="Prochainement : Analyse IA")
-st.caption("⚠️ Note : L'analyse IA est en maintenance. Utilisez le mode Manuel ci-dessous.")
+# --- SECTION ASSISTANT IA ---
+with st.expander("✨ ASSISTANT IA (Aide à l'extraction)", expanded=True):
+    st.markdown("""
+    **Étape 1 :** Ouvrez l'une des IA ci-dessous.
+    """)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.link_button("🤖 Claude.ai", "https://claude.ai", use_container_width=True)
+    with c2:
+        st.link_button("♊ Gemini Google", "https://gemini.google.com", use_container_width=True)
+    
+    st.markdown("**Étape 2 :** Envoyez votre photo et copiez ce prompt :")
+    prompt_ia = """Analyse cette photo de bordereau RL. 
+Extrait chaque client sous ce format précis :
+NOM ; ADRESSE ; INFO
+
+IMPORTANT : 
+- Dans 'INFO', note précisément les jours où il n'y a pas de journal (ex: PAS DE JOURNAL LUNDI ET MARDI). 
+- Si la personne reçoit son journal normalement, laisse 'INFO' vide.
+- Ne rajoute aucun autre texte, juste la liste avec des points-virgules."""
+    st.code(prompt_ia, language="text")
 
 st.divider()
 
-# SECTION 2 : LE MODE MANUEL QUI MARCHE
-st.subheader("⚡ Mode Haute Précision (Manuel)")
-data_input = st.text_area("Colle ta liste (NOM ; ADRESSE ; OPTION) :", height=250)
+# --- SECTION MODE MANUEL ---
+st.subheader("⚡ Générateur (Mode Manuel)")
+data_input = st.text_area("Colle ici le résultat de l'IA (NOM ; ADRESSE ; OPTION) :", height=250, placeholder="Ex: MME DUPONT ; 12 RUE DE LA PAIX ; PAS DE JOURNAL LE LUNDI")
 
-if st.button("🚀 GÉNÉRER L'APPLI DE TOURNÉE"):
+if st.button("🚀 GÉNÉRER L'APPLI DE TOURNÉE", use_container_width=True):
     if data_input:
         html = generate_final_html(data_input.split("\n"))
         st.success("✅ Application générée avec succès !")
         st.download_button("📥 TÉLÉCHARGER LE FICHIER", html, "Tournee_Matthieu.html", "text/html")
+    else:
+        st.error("Veuillez coller des données avant de générer.")
+
+st.divider()
+
+# SECTION OPTIONNELLE (DESACTVÉE)
+st.caption("🛠️ Options Photos Directes (En maintenance)")
+col1, col2 = st.columns(2)
+with col1:
+    st.button("🖼️ Scanner Photo", disabled=True)
+with col2:
+    st.button("📄 Importer PDF", disabled=True)
