@@ -1,7 +1,7 @@
 import streamlit as st
+import pdfplumber
 import re
 
-# Configuration de la page
 st.set_page_config(page_title="Système RL - Matthieu Wagner", page_icon="🗞️", layout="centered")
 
 # --- STYLE CSS ---
@@ -14,100 +14,72 @@ st.markdown("""
         padding: 10px 15px;
         font-weight: bold;
     }
-    .stTabs [aria-selected="true"] { 
-        background-color: #1a73e8 !important; 
-        color: white !important; 
-    }
+    .stTabs [aria-selected="true"] { background-color: #1a73e8 !important; color: white !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- LOGIQUE DE GÉNÉRATION ---
-def generate_html_app(data):
-    cards_html = ""
-    lines = data.strip().split('\n')
-    for i, line in enumerate(lines):
-        if ";" not in line: continue
-        parts = line.split(";")
-        nom = parts[0].strip().upper()
-        adr = parts[1].strip().upper()
-        
-        # Alerte si l'IA n'est pas sûre ou si c'est un arrêt
-        is_warning = any(x in nom for x in ["BOUR", "REB", "[?]"])
-        color = "#ef4444" if is_warning else "#1a73e8"
-        
-        maps_url = f"https://www.google.com/maps/search/?api=1&query={adr.replace(' ','+')}"
-        
-        cards_html += f"""
-        <div style="background:white; margin-bottom:12px; padding:15px; border-radius:15px; border-left:10px solid {color}; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-            <div style="flex:1;">
-                <div style="color:#1a73e8; font-weight:bold; font-size:16px;">{nom}</div>
-                <div style="font-size:13px; color:#444; margin-top:4px;">{adr}</div>
-            </div>
-            <a href="{maps_url}" target="_blank" style="text-decoration:none; background:#f0f7ff; padding:12px; border-radius:12px; border:1.5px solid #1a73e8; font-size:20px;">📍</a>
-        </div>"""
-        
-    return f"<html><body style='font-family:sans-serif; background:#f8f9fa; padding:15px;'>{cards_html}<p style='text-align:center; color:#999; font-size:10px;'>MATTHIEU WAGNER - SYSTÈME RL</p></body></html>"
+# --- FONCTION D'EXTRACTION PDF ---
+def extraire_pdf(file):
+    lignes = []
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text()
+            if text:
+                for l in text.split('\n'):
+                    if any(k in l.upper() for k in ["RUE", "AV", "IMP", "PL", "BD"]):
+                        lignes.append(l.strip())
+    return lignes
 
 # --- INTERFACE ---
-st.title("🗞️ Scanner de Tournée RL")
-st.caption("Solution développée par Matthieu Wagner")
+st.title("🗞️ Scanner RL - Multi-Outils")
+st.caption("Développement : Matthieu Wagner")
 
-# LES 3 CHOIX POUR L'UTILISATEUR
-tab1, tab2, tab3 = st.tabs(["🪄 EXTRACTEUR IA (Conseillé)", "📸 PHOTO / PDF DIRECT", "🚀 GÉNÉRATEUR"])
+tab1, tab2, tab3, tab4 = st.tabs(["🪄 IA (CONSEILLÉ)", "📸 PHOTO", "📄 PDF", "🚀 GÉNÉRATEUR"])
 
+# --- ONGLET 1 : IA EXTERNE ---
 with tab1:
-    st.write("### 🪄 Méthode Haute Précision")
-    st.info("Utilisez la puissance de vision de Claude ou Gemini pour déchiffrer votre bordereau sans erreur.")
-    
-    prompt = """Analyse ce bordereau RL. 
-Extrait CHAQUE client sous ce format exact :
-NOM ; NUMÉRO ET RUE ; VILLE
-
-Règles :
-1. Ignore les codes abonnés et les dates.
-2. Si une info manque, mets [?].
-3. Ne réponds que la liste."""
-
-    st.markdown("**1. Copiez le prompt spécial :**")
-    st.code(prompt)
-    
-    st.markdown("**2. Envoyez votre photo à l'IA :**")
+    st.write("### 🧠 Extraction par IA Haute Précision")
+    st.info("La meilleure méthode pour éviter les décalages de colonnes.")
+    st.markdown("**Copiez ce prompt anti-erreur :**")
+    st.code("Analyse ce tableau. Extrait : NOM ; ADRESSE. Garde bien l'alignement horizontal de chaque ligne. Ignore les codes abonnés.")
     col1, col2 = st.columns(2)
-    with col1:
-        st.link_button("🤖 Claude.ai (Recommandé)", "https://claude.ai")
-    with col2:
-        st.link_button("♊ Gemini Google", "https://gemini.google.com")
-    
-    st.divider()
-    st.caption("Une fois la liste obtenue, copiez-la et allez dans l'onglet 'GÉNÉRATEUR'.")
+    with col1: st.link_button("Ouvrir Claude", "https://claude.ai")
+    with col2: st.link_button("Ouvrir Gemini", "https://gemini.google.com")
 
+# --- ONGLET 2 : PHOTO ---
 with tab2:
-    st.write("### 📥 Importation Directe")
-    st.write("Si vous préférez essayer l'analyse interne (en test) :")
-    
-    option = st.radio("Type de fichier :", ["Photo du bordereau", "Fichier PDF officiel"])
-    
-    if option == "Photo du bordereau":
-        st.file_uploader("Prendre une photo", type=["jpg", "jpeg", "png"])
-    else:
-        st.file_uploader("Choisir le PDF", type="pdf")
-        
-    if st.button("Lancer l'analyse directe"):
-        st.warning("⚠️ L'analyse directe est moins précise que la méthode IA (onglet 1).")
+    st.write("### 📸 Scan Photo Direct")
+    photo = st.file_uploader("Prendre une photo du bordereau", type=["jpg", "jpeg", "png"])
+    if photo:
+        st.image(photo, caption="Aperçu du bordereau", use_container_width=True)
+        st.warning("⚠️ L'analyse photo directe est limitée sur mobile. Utilisez le 'Texte en direct' de votre iPhone/Android pour copier le texte vers l'onglet GÉNÉRATEUR.")
 
+# --- ONGLET 3 : PDF ---
 with tab3:
-    st.write("### 📱 Création de l'Appli")
-    st.write("Collez ici votre liste finale pour fabriquer votre outil de livraison.")
-    
-    input_data = st.text_area("Liste au format NOM ; ADRESSE", height=300, placeholder="Ex: MME BOUR ; 38 RUE SAINT ANTOINE")
-    
-    if st.button("GÉNÉRER MON APPLI MOBILE", use_container_width=True):
-        if ";" in input_data:
-            app_html = generate_html_app(input_data)
-            st.success("✅ Application générée !")
-            st.download_button("📥 TÉLÉCHARGER LE FICHIER", app_html, "MaTournee.html", "text/html")
-        else:
-            st.error("Format invalide. Utilisez 'NOM ; ADRESSE'")
+    st.write("### 📄 Extraction PDF Directe")
+    file_pdf = st.file_uploader("Choisir le fichier PDF officiel", type="pdf")
+    if file_pdf:
+        if st.button("🔍 Analyser le PDF"):
+            res = extraire_pdf(file_pdf)
+            if res:
+                st.success(f"{len(res)} lignes détectées")
+                st.text_area("Texte extrait (Ajoutez les ';' entre nom et adresse) :", value="\n".join(res), height=200)
 
-st.markdown("---")
-st.caption("Matthieu Wagner - Centre de Commande Tournée v2.5")
+# --- ONGLET 4 : GÉNÉRATEUR ---
+with tab4:
+    st.write("### 🚀 Création de l'Appli Mobile")
+    saisie = st.text_area("Collez votre liste finale (NOM ; ADRESSE) :", height=300, placeholder="Ex: BOUR BERNADETTE ; 38 RUE SAINT ANTOINE")
+    
+    if st.button("📱 GÉNÉRER MA TOURNÉE", use_container_width=True):
+        if ";" in saisie:
+            # Création du HTML (Simplifiée pour l'exemple)
+            cards = ""
+            for line in saisie.split('\n'):
+                if ";" in line:
+                    n, a = line.split(";", 1)
+                    cards += f"<div style='border-left:8px solid #1a73e8; background:white; padding:10px; margin-bottom:10px; border-radius:10px; box-shadow:0 2px 4px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center;'><div><b>{n.strip().upper()}</b><br>{a.strip().upper()}</div><a href='https://www.google.com/maps/search/?api=1&query={a.replace(' ','+')}' style='text-decoration:none; font-size:20px;'>📍</a></div>"
+            
+            full_html = f"<html><body style='font-family:sans-serif; background:#f0f2f5; padding:10px;'>{cards}</body></html>"
+            st.download_button("📥 TÉLÉCHARGER LE FICHIER", full_html, "Tournee.html", "text/html")
+        else:
+            st.error("Format requis : NOM ; ADRESSE")
