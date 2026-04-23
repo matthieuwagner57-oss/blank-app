@@ -5,112 +5,115 @@ import re
 # Configuration de la page
 st.set_page_config(page_title="Scanner RL - Matthieu Wagner", page_icon="🗞️", layout="centered")
 
-# --- DESIGN DES ONGLETS ---
-st.markdown("""
-    <style>
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #f0f2f5;
-        border-radius: 10px 10px 0px 0px;
-        padding: 10px 15px;
-        font-weight: bold;
-    }
-    .stTabs [aria-selected="true"] { 
-        background-color: #1a73e8 !important; 
-        color: white !important; 
-    }
-    </style>
-""", unsafe_allow_html=True)
+# --- FONCTION D'EXTRACTION PDF ---
+def extraire_donnees_pdf(file):
+    liste_propre = []
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text()
+            if text:
+                lines = text.split('\n')
+                for line in lines:
+                    if any(k in line.upper() for k in ["RUE", "AVENUE", "IMP", "PL ", "SQ", "BD"]):
+                        # Détection automatique du "N" dans le PDF
+                        info_n = " ; PAS DE LIVRAISON (N)" if " N " in f" {line.upper()} " else " ; "
+                        clean_line = re.sub(r'^\d{5,}\s+', '', line) # Enlève code abonné
+                        liste_propre.append(f"{clean_line}{info_n}")
+    return liste_propre
 
-# --- CERVEAU DE GÉNÉRATION ---
-def generate_final_app(data_input):
+# --- GÉNÉRATEUR HTML FINAL ---
+def generate_html(data, compact):
     cards_html = ""
-    lines = data_input.strip().split('\n')
+    # Réglages vue compacte
+    padding = "8px 12px" if compact else "15px"
+    font_nom = "14px" if compact else "16px"
+    margin = "6px" if compact else "12px"
     
+    lines = data.strip().split('\n')
     for i, line in enumerate(lines):
-        line_up = line.upper().strip()
-        if not line_up: continue
+        if not line.strip(): continue
         
-        # Filtre de sécurité : on ignore les lignes sans adresses
-        if not any(k in line_up for k in ["RUE", "AVENUE", "AV ", "IMP", "PL ", "SQ", "BD", "ROUTE", "CHEMIN"]):
-            continue
+        parts = line.split(";")
+        nom = parts[0].strip().upper()
+        adr = parts[1].strip().upper() if len(parts) > 1 else ""
+        info = parts[2].strip().upper() if len(parts) > 2 else ""
 
-        # Extraction Nom / Adresse / Info
-        if ";" in line:
-            parts = line.split(";")
-            nom = parts[0].strip().upper()
-            adr = parts[1].strip().upper()
-            info_supp = " ".join(parts[2:]).strip().upper() if len(parts) > 2 else ""
-        else:
-            match = re.search(r'(\d+)', line)
-            if match:
-                nom = line[:match.start()].strip().upper()
-                adr = line[match.start():].strip().upper()
-                info_supp = ""
-            else:
-                nom = "CLIENT"
-                adr = line.strip().upper()
-                info_supp = ""
-
-        # Détection "PAS DE JOURNAL"
-        full_text = f"{nom} {adr} {info_supp}"
-        is_stop = any(x in full_text for x in ["PAS DE JOURNAL", "PAS ", "SANS J", "STOP", "VACANCES", "REPOS"])
-        
+        # Détection des alertes
+        is_stop = any(x in f"{nom} {adr} {info}" for x in ["PAS", " N ", "STOP", "VACANCES", "REPOS"])
         color = "#ef4444" if is_stop else "#1a73e8"
-        badge = '<div style="color:#ef4444; font-weight:bold; font-size:11px; margin-top:4px;">⚠️ PAS DE JOURNAL</div>' if is_stop else ""
-        opacity = "0.7" if is_stop else "1"
-        
-        maps_url = f"https://www.google.com/maps/search/?api=1&query={adr.replace(' ','+')}"
         
         cards_html += f"""
-        <div style="background:white; margin-bottom:12px; padding:15px; border-radius:15px; border-left:10px solid {color}; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.15); opacity:{opacity};">
-            <div style="flex:1;">
-                <div style="color:#1a73e8; font-weight:bold; font-size:16px;">{nom}</div>
-                <div style="font-size:13px; color:#444; margin-top:4px; font-weight:bold;">{adr}</div>
-                {badge}
-            </div>
-            <a href="{maps_url}" target="_blank" style="text-decoration:none; background:#f0f7ff; padding:12px; border-radius:12px; border:1.5px solid #1a73e8; font-size:20px;">📍</a>
+        <div class="item">
+            <input type="checkbox" id="check{i}" class="toggle-done" style="display:none;">
+            <label for="check{i}" class="card" style="border-left:8px solid {color}; padding:{padding}; margin-bottom:{margin};">
+                <div class="info">
+                    <div style="color:#1a73e8; font-weight:bold; font-size:{font_nom};">{nom}</div>
+                    <div style="font-size:12px; color:#444;">{adr}</div>
+                    {f'<div style="color:#ef4444; font-weight:bold; font-size:11px; margin-top:4px;">⚠️ {info}</div>' if is_stop else ""}
+                </div>
+                <a href="https://www.google.com/maps/search/?api=1&query={adr.replace(' ','+')}" target="_blank" class="map-btn" onclick="event.stopPropagation();">📍</a>
+            </label>
         </div>"""
-    
-    return f"<html><body style='font-family:sans-serif; background:#f8f9fa; padding:15px;'><h2 style='color:#1a73e8;'>🗞️ MA TOURNÉE</h2>{cards_html}<p style='text-align:center; color:#999; font-size:10px; margin-top:20px;'>MATTHIEU WAGNER</p></body></html>"
 
-# --- INTERFACE ---
-st.title("🗞️ Scanner RL Pro")
-st.caption("Développé par Matthieu Wagner")
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+            body {{ font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 10px; margin:0; }}
+            .card {{ background: white; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: 0.2s; }}
+            .map-btn {{ text-decoration: none; background: #f0f7ff; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #1a73e8; font-size: 20px; }}
+            .toggle-done:checked + .card {{ background: #d1fae5; opacity: 0.5; border-left-color: #22c55e; }}
+        </style>
+    </head>
+    <body>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:5px;">
+            <b style="color:#1a73e8; font-size:20px;">🗞️ MA TOURNÉE</b>
+            <button onclick="window.location.reload()" style="background:#ef4444; color:white; border:none; padding:10px 15px; border-radius:10px; font-weight:bold; font-size:12px;">🔄 TOUT DÉCOCHER</button>
+        </div>
+        {cards_html}
+        <div style="text-align:center; padding:20px; color:#aaa; font-size:10px; font-weight:bold;">MATTHIEU WAGNER - SYSTÈME RL</div>
+    </body>
+    </html>"""
 
-# RE-CRÉATION DES 4 ONGLETS
+# --- INTERFACE STREAMLIT ---
 tab1, tab2, tab3, tab4 = st.tabs(["🪄 IA", "📸 PHOTO", "📄 PDF", "🚀 GÉNÉRATEUR"])
 
 with tab1:
-    st.write("### 🧠 Extraction par IA (Claude/Gemini)")
-    st.info("Meilleure méthode pour détecter les 'PAS DE JOURNAL'.")
-    prompt_ia = """Analyse ce bordereau RL. 
-Extrait : NOM ; ADRESSE ; INFO_LIVRAISON
-- Si colonne '0' ou 'PAS' visible -> INFO_LIVRAISON = PAS DE JOURNAL
-- Sinon -> INFO_LIVRAISON = (vide)
-Vérifie bien l'alignement horizontal. Ne réponds que la liste."""
-    st.code(prompt_ia)
+    st.write("### 🧠 Mode Expert (Claude/Gemini)")
+    st.info("Copiez ce prompt pour une détection parfaite du 'N' (Pas de journal).")
+    st.code("Analyse ce bordereau RL. Format : NOM ; ADRESSE ; INFO. Si tu vois un 'N' dans les jours, écris 'PAS DE JOURNAL'.")
     col1, col2 = st.columns(2)
     with col1: st.link_button("Ouvrir Claude", "https://claude.ai")
     with col2: st.link_button("Ouvrir Gemini", "https://gemini.google.com")
 
 with tab2:
     st.write("### 📸 Scan Photo")
-    st.file_uploader("Prendre une photo du bordereau", type=["jpg", "jpeg", "png"])
-    st.warning("Utilisez le mode IA pour une meilleure précision.")
+    photo = st.file_uploader("Prendre une photo du bordereau", type=["jpg", "jpeg", "png"])
+    if photo:
+        st.image(photo, caption="Aperçu pour vérification", use_container_width=True)
+        if st.button("🔍 ANALYSER LA PHOTO"):
+            st.info("📱 Astuce : Sur iPhone/Android, maintenez votre doigt sur le texte de l'image pour le copier directement !")
 
 with tab3:
-    st.write("### 📄 Import PDF")
-    pdf_file = st.file_uploader("Choisir le PDF officiel", type="pdf")
-    if pdf_file:
-        st.success("Fichier prêt pour l'analyse.")
+    st.write("### 📄 Analyse PDF")
+    file_pdf = st.file_uploader("Fichier PDF officiel", type="pdf")
+    if file_pdf:
+        if st.button("🔍 EXTRAIRE LE TEXTE DU PDF"):
+            res = extraire_donnees_pdf(file_pdf)
+            if res:
+                st.success(f"{len(res)} clients extraits !")
+                st.text_area("Résultat à copier :", value="\n".join(res), height=250)
 
 with tab4:
-    st.write("### 🚀 Générateur d'Appli")
-    input_data = st.text_area("Collez votre liste ici (NOM ; ADRESSE ; INFO)", height=300, placeholder="Ex: MME BOUR ; 38 RUE SAINT ANTOINE ; PAS DE JOURNAL")
+    st.write("### 🚀 Création de l'Appli")
+    col_c1, col_c2 = st.columns(2)
+    with col_c1: compact = st.toggle("📏 Vue Compacte", value=False)
     
-    if st.button("📱 GÉNÉRER MA TOURNÉE MOBILE", use_container_width=True):
-        if input_data:
-            app_html = generate_final_app(input_data)
-            st.success("✅ Application prête !")
-            st.download_button("📥 TÉLÉCHARGER LE FICHIER", app_html, "Tournee.html", "text/html")
+    data_input = st.text_area("Collez votre liste ici :", height=300, placeholder="NOM ; ADRESSE ; INFO")
+    
+    if st.button("📱 GÉNÉRER L'APPLI MOBILE", use_container_width=True):
+        if data_input:
+            final_html = generate_html(data_input, compact)
+            st.download_button("📥 TÉLÉCHARGER LE FICHIER", final_html, "Tournee.html", "text/html")
